@@ -1,0 +1,36 @@
+# Binaries for programs and plugins
+*.exe
+*.darwin-amd64
+*.darwin-arm64
+*.freebsd-amd64
+*.linux-amd64
+*.linux-arm64
+*.netbsd-amd64
+*.openbsd-amd64
+*.windows-amd64
+
+# Test binary, generated with `go test -c`
+*.test
+
+# Output of `go build`
+*.out
+
+# Dependency directories (golang specific)
+vendor/
+
+# Go module cache
+.go/
+
+# IDE-specific files (e.g., VS Code, IntelliJ IDEA)
+.vscode/
+.idea/
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Environment variables
+.env
