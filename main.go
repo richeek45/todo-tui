@@ -5,7 +5,6 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gen2brain/beeep"
 )
 
 type model struct {
@@ -73,34 +72,8 @@ func (m model) View() string {
 }
 
 func main() {
+	notify()
 
-	beeep.AppName = "My App Name"
-	title := "Title"
-	message := "Message body"
-	// AppName := "My App Name"
-
-	icon := "warning.png"
-
-	// err := beeep.Notify(title, message, icon)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	beeep.AppName = "My App Name"
-
-	err := beeep.Alert(title, message, icon)
-	if err != nil {
-		panic(err)
-	}
-
-	// cmd, err := exec.LookPath("terminal-notifier")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// args := []string{"-title", title, "-message", message, "-group", AppName, "-appIcon", img, "-sound", "default"}
-
-	// c := exec.Command(cmd, args...)
-	// c.Run()
 	p := tea.NewProgram(initialModel())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
