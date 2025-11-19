@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/gen2brain/beeep"
 )
@@ -9,20 +9,18 @@ import (
 func notify() {
 
 	beeep.AppName = "My App Name"
-	title := "Title"
-	message := "Message body"
+	title := "Low Battery"
+	message := "Your Mac will sleep soon unless plugged into a power outlet"
 
-	icon := "icons/warning.png"
+	icon := "icons/low_battery.png"
 
-	fmt.Println("This")
-
-	// err := beeep.Notify(title, message, icon)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	err := beeep.Alert(title, message, icon)
+	err := beeep.Notify(title, message, icon)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
+
+	// err := beeep.Alert(title, message, icon)
+	// if err != nil {
+	// 	panic(err)
+	// }
 }

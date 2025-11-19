@@ -1,24 +1,73 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
+	"io"
+	"log"
 	"os"
+	"strings"
 
+	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	_ "github.com/mattn/go-sqlite3"
 )
 
-type model struct {
-	choices  []string
-	cursor   int
-	selected map[int]struct{}
+type item struct {
+	title, desc string
 }
 
-func initialModel() model {
-	return model{
-		choices:  []string{"Buy carrots", "Buy celery", "Buy kohlrabi"},
-		selected: make(map[int]struct{}),
-	}
+type model struct {
+	choice   string
+	list     list.Model
+	quitting bool
 }
+
+type itemDelegate struct{}
+
+var (
+	quitTextStyle     = lipgloss.NewStyle().Margin(1, 0, 2, 4)
+	itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
+	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
+)
+
+func (d itemDelegate) Height() int                             { return 1 }
+func (d itemDelegate) Spacing() int                            { return 0 }
+func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	i, ok := listItem.(item)
+	if !ok {
+		return
+	}
+
+	// styles := list.NewDefaultItemStyles()
+
+	str := fmt.Sprintf(" %d. %s - %s", index+1, i.Title(), i.Description())
+
+	fn := itemStyle.Render
+	if index == m.Index() {
+		fn = func(strs ...string) string {
+			return selectedItemStyle.Render(" >" + strings.Join(strs, " "))
+		}
+	}
+
+	fmt.Fprint(w, fn(str))
+
+}
+
+func (i item) Title() string       { return i.title }
+func (i item) Description() string { return i.desc }
+func (i item) FilterValue() string { return i.title }
+
+// func initialModel() model {
+// 	return model{
+// 		choices:  []string{"Buy carrots", "Buy celery", "Buy kohlrabi"},
+// 		selected: make(map[int]struct{}),
+// 	}
+// }
+
+var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
 func (m model) Init() tea.Cmd {
 	return nil
@@ -29,52 +78,106 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
+			m.quitting = true
 			return m, tea.Quit
-		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
-			}
-		case "down", "j":
-			if m.cursor < len(m.choices)-1 {
-				m.cursor++
-			}
 		case "enter", " ":
-			_, ok := m.selected[m.cursor]
+			i, ok := m.list.SelectedItem().(item)
 			if ok {
-				delete(m.selected, m.cursor)
-			} else {
-				m.selected[m.cursor] = struct{}{}
+				m.choice = string(i.Title())
 			}
+		}
+	case tea.WindowSizeMsg:
+		{
+			h, v := docStyle.GetFrameSize()
+			m.list.SetSize(msg.Width-h, msg.Height-v)
 		}
 	}
 
-	return m, nil
+	var cmd tea.Cmd
+	m.list, cmd = m.list.Update(msg)
+	return m, cmd
 }
 
 func (m model) View() string {
-	s := "Where should we begin this journey?"
 
-	for i, choice := range m.choices {
-		cursor := " "
-		if m.cursor == i {
-			cursor = ">"
-		}
-		checked := " "
-		if _, ok := m.selected[i]; ok {
-			checked = "x"
-		}
-		// render the row
-		s += fmt.Sprintf("\n%s [%s] %s", cursor, checked, choice)
+	if m.choice != "" {
+		return quitTextStyle.Render(fmt.Sprintf("%s? Sounds good to me.", m.choice))
 	}
-	s += "\n Press q to quit.\n"
-
-	return s
+	if m.quitting {
+		return quitTextStyle.Render("Not hungry? That’s cool.")
+	}
+	return docStyle.Render(m.list.View())
 }
 
 func main() {
 	notify()
+	db, err := sql.Open("sqlite3", "./test.db")
 
-	p := tea.NewProgram(initialModel())
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	sqlStatement := `
+		CREATE TABLE IF NOT EXISTS users (
+		id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+		name TEXT
+		)
+	`
+
+	_, err = db.Exec(sqlStatement)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Table 'users' created successfully")
+
+	_, err = db.Exec("INSERT INTO users(name) VALUES(?)", "John Doe")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	rows, err := db.Query("SELECT id, name FROM users")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	if err = rows.Err(); err != nil {
+		log.Fatal(err)
+	}
+
+	items := []list.Item{
+		item{title: "Raspberry Pi’s", desc: "I have ’em all over my house"},
+		item{title: "Nutella", desc: "It's good on toast"},
+		item{title: "Bitter melon", desc: "It cools you down"},
+		item{title: "Nice socks", desc: "And by that I mean socks without holes"},
+		item{title: "Eight hours of sleep", desc: "I had this once"},
+		item{title: "Cats", desc: "Usually"},
+		item{title: "Plantasia, the album", desc: "My plants love it too"},
+		item{title: "Pour over coffee", desc: "It takes forever to make though"},
+		item{title: "VR", desc: "Virtual reality...what is there to say?"},
+		item{title: "Noguchi Lamps", desc: "Such pleasing organic forms"},
+		item{title: "Linux", desc: "Pretty much the best OS"},
+		item{title: "Business school", desc: "Just kidding"},
+		item{title: "Pottery", desc: "Wet clay is a great feeling"},
+		item{title: "Shampoo", desc: "Nothing like clean hair"},
+		item{title: "Table tennis", desc: "It’s surprisingly exhausting"},
+		item{title: "Milk crates", desc: "Great for packing in your extra stuff"},
+		item{title: "Afternoon tea", desc: "Especially the tea sandwich part"},
+		item{title: "Stickers", desc: "The thicker the vinyl the better"},
+		item{title: "20° Weather", desc: "Celsius, not Fahrenheit"},
+		item{title: "Warm light", desc: "Like around 2700 Kelvin"},
+		item{title: "The vernal equinox", desc: "The autumnal equinox is pretty good too"},
+		item{title: "Gaffer’s tape", desc: "Basically sticky fabric"},
+		item{title: "Terrycloth", desc: "In other words, towel fabric"},
+	}
+
+	m := model{
+		list: list.New(items, itemDelegate{}, 0, 0),
+	}
+	m.list.Title = "My Fave Things"
+
+	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)
