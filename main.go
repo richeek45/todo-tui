@@ -1,96 +1,184 @@
 package main
 
 import (
-	"database/sql"
+	// "database/sql"
+	// "log"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/richeek45/todo-tui/components/sidebar"
+	"github.com/richeek45/todo-tui/config"
+	"github.com/richeek45/todo-tui/context"
+	"github.com/richeek45/todo-tui/keys"
+	"github.com/richeek45/todo-tui/theme"
+)
+
+const (
+	// bullet   = "•"
+	ellipsis = "…"
 )
 
 type item struct {
 	title, desc string
 }
 
-type model struct {
+type Model struct {
 	choice   string
 	list     list.Model
+	sidebar  sidebar.Model
 	quitting bool
+
+	width, height int
+	screenWidth   int
+
+	keys *keys.KeyMap
+	ctx  *context.ProgramContext
 }
 
-type itemDelegate struct{}
+type initMsg struct {
+	Config config.Config
+}
+
+type itemDelegate struct {
+	ShowDescription bool
+}
 
 var (
-	quitTextStyle     = lipgloss.NewStyle().Margin(1, 0, 2, 4)
-	itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
-	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
+	quitTextStyle = lipgloss.NewStyle().Margin(1, 0, 2, 4)
 )
 
+func NewModel(items []list.Item) Model {
+	m := Model{
+		list:    list.New(items, itemDelegate{ShowDescription: true}, 0, 0),
+		keys:    keys.Keys,
+		sidebar: sidebar.NewModel(),
+	}
+
+	m.ctx = &context.ProgramContext{}
+
+	return m
+}
+
+func (m Model) InitScreen() tea.Msg {
+	cfg := config.ParseConfig()
+	return initMsg{Config: cfg}
+}
+
 func (d itemDelegate) Height() int                             { return 1 }
-func (d itemDelegate) Spacing() int                            { return 0 }
+func (d itemDelegate) Spacing() int                            { return 2 }
 func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(item)
-	if !ok {
+	var (
+		title, desc, indexValue string
+		matchedRunes            []int
+		s                       = list.NewDefaultItemStyles()
+	)
+
+	if i, ok := listItem.(item); ok {
+		title = i.Title()
+		desc = i.Description()
+	} else {
 		return
 	}
 
-	// styles := list.NewDefaultItemStyles()
+	// Conditions
+	var (
+		isSelected  = index == m.Index()
+		emptyFilter = m.FilterState() == list.Filtering && m.FilterValue() == ""
+		isFiltered  = m.FilterState() == list.Filtering || m.FilterState() == list.FilterApplied
+	)
 
-	str := fmt.Sprintf(" %d. %s - %s", index+1, i.Title(), i.Description())
-
-	fn := itemStyle.Render
-	if index == m.Index() {
-		fn = func(strs ...string) string {
-			return selectedItemStyle.Render(" >" + strings.Join(strs, " "))
-		}
+	textwidth := m.Width() / 3
+	title = ansi.Truncate(title, textwidth, ellipsis)
+	if d.ShowDescription {
+		desc = ansi.Truncate(strings.Split(desc, "\n")[0], textwidth, ellipsis)
 	}
 
-	fmt.Fprint(w, fn(str))
+	if emptyFilter {
+		title = s.DimmedTitle.Render(title)
+		desc = s.DimmedDesc.PaddingLeft(6).Render(desc)
+	} else if isSelected && m.FilterState() != list.Filtering {
+		if isFiltered {
+			// Highlight matches
+			unmatched := s.SelectedTitle.Inline(true)
+			matched := unmatched.Inherit(s.FilterMatch)
+			title = lipgloss.StyleRunes(title, matchedRunes, matched, unmatched)
+		}
+		indexValue = s.SelectedTitle.Render(strconv.Itoa(index + 1))
+		title = s.NormalTitle.Foreground(lipgloss.AdaptiveColor{Light: "#EE6FF8", Dark: "#EE6FF8"}).Render(title)
+		desc = s.SelectedDesc.PaddingLeft(5).Render(desc)
+	} else {
+		if isFiltered {
+			// Highlight matches
+			unmatched := s.NormalTitle.Inline(true)
+			matched := unmatched.Inherit(s.FilterMatch)
+			title = lipgloss.StyleRunes(title, matchedRunes, matched, unmatched)
+		}
+		indexValue = s.NormalTitle.Render(strconv.Itoa(index + 1))
+		title = s.NormalTitle.Render(title)
+		desc = s.NormalDesc.PaddingLeft(6).Render(desc)
+	}
 
+	if d.ShowDescription {
+		fmt.Fprintf(w, "%s.%s\n%s", indexValue, title, desc) //nolint: errcheck
+		return
+	}
+	fmt.Fprintf(w, "%s", title) //nolint: errcheck
 }
 
 func (i item) Title() string       { return i.title }
 func (i item) Description() string { return i.desc }
 func (i item) FilterValue() string { return i.title }
 
-// func initialModel() model {
-// 	return model{
-// 		choices:  []string{"Buy carrots", "Buy celery", "Buy kohlrabi"},
-// 		selected: make(map[int]struct{}),
-// 	}
-// }
-
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
-func (m model) Init() tea.Cmd {
-	return nil
+func (m Model) Init() tea.Cmd {
+	return tea.Batch(m.InitScreen, tea.EnterAltScreen)
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "q":
+		switch {
+		case key.Matches(msg, m.keys.Quit):
 			m.quitting = true
 			return m, tea.Quit
-		case "enter", " ":
+		case key.Matches(msg, m.keys.Enter):
 			i, ok := m.list.SelectedItem().(item)
 			if ok {
 				m.choice = string(i.Title())
 			}
+		case key.Matches(msg, m.keys.TogglePreview):
+			_, ok := m.list.SelectedItem().(item)
+			if ok {
+				m.sidebar.IsOpen = !m.sidebar.IsOpen
+				log.Println(m.sidebar.IsOpen)
+				m.SyncMainContentWidth()
+			}
 		}
 	case tea.WindowSizeMsg:
-		{
-			h, v := docStyle.GetFrameSize()
-			m.list.SetSize(msg.Width-h, msg.Height-v)
-		}
+		h, v := docStyle.GetFrameSize()
+		m.list.SetSize(msg.Width-h, msg.Height-v)
+		m.width = msg.Width - h
+		m.height = msg.Height - v
+		m.screenWidth = msg.Width
+	case initMsg:
+		m.ctx.Config = &msg.Config
+		m.ctx.Theme = theme.ParseTheme()
+		m.ctx.Styles = context.InitStyles(m.ctx.Theme)
+
+		m.sidebar.IsOpen = m.ctx.Config.Defaults.Preview.Open
+		m.SyncMainContentWidth()
 	}
 
 	var cmd tea.Cmd
@@ -98,7 +186,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m model) View() string {
+func (m Model) View() string {
 
 	if m.choice != "" {
 		return quitTextStyle.Render(fmt.Sprintf("%s? Sounds good to me.", m.choice))
@@ -110,41 +198,49 @@ func (m model) View() string {
 }
 
 func main() {
-	notify()
-	db, err := sql.Open("sqlite3", "./test.db")
+	// notify()
 
+	// db, err := sql.Open("sqlite3", "./test.db")
+
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// defer db.Close()
+
+	// sqlStatement := `
+	// 	CREATE TABLE IF NOT EXISTS users (
+	// 	id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+	// 	name TEXT
+	// 	)
+	// `
+
+	// _, err = db.Exec(sqlStatement)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// log.Println("Table 'users' created successfully")
+
+	// _, err = db.Exec("INSERT INTO users(name) VALUES(?)", "John Doe")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	// rows, err := db.Query("SELECT id, name FROM users")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// defer rows.Close()
+
+	// if err = rows.Err(); err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	f, err := tea.LogToFile("debug.log", "debug")
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("fatal:", err)
+		os.Exit(1)
 	}
-	defer db.Close()
-
-	sqlStatement := `
-		CREATE TABLE IF NOT EXISTS users (
-		id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-		name TEXT
-		)
-	`
-
-	_, err = db.Exec(sqlStatement)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println("Table 'users' created successfully")
-
-	_, err = db.Exec("INSERT INTO users(name) VALUES(?)", "John Doe")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	rows, err := db.Query("SELECT id, name FROM users")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer rows.Close()
-
-	if err = rows.Err(); err != nil {
-		log.Fatal(err)
-	}
+	defer f.Close()
 
 	items := []list.Item{
 		item{title: "Raspberry Pi’s", desc: "I have ’em all over my house"},
@@ -159,7 +255,7 @@ func main() {
 		item{title: "Noguchi Lamps", desc: "Such pleasing organic forms"},
 		item{title: "Linux", desc: "Pretty much the best OS"},
 		item{title: "Business school", desc: "Just kidding"},
-		item{title: "Pottery", desc: "Wet clay is a great feeling"},
+		item{title: "Pottery", desc: "Wet clay is a great feeling Wet clay is a great feelingWet clay is a great feelingWet \nclay is a great feelingWet clay is a great feelingWet clay is a great feeling"},
 		item{title: "Shampoo", desc: "Nothing like clean hair"},
 		item{title: "Table tennis", desc: "It’s surprisingly exhausting"},
 		item{title: "Milk crates", desc: "Great for packing in your extra stuff"},
@@ -172,9 +268,8 @@ func main() {
 		item{title: "Terrycloth", desc: "In other words, towel fabric"},
 	}
 
-	m := model{
-		list: list.New(items, itemDelegate{}, 0, 0),
-	}
+	m := NewModel(items)
+	// m.list.SetSize()
 	m.list.Title = "My Fave Things"
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
@@ -183,4 +278,18 @@ func main() {
 		os.Exit(1)
 	}
 
+}
+
+func (m *Model) SyncSideBar() {
+	// width := m.GetSidebarContentWidth()
+	m.sidebar.SetContent(fmt.Sprintf("Whatever content I want to put here.... %d", 1000))
+}
+
+func (m *Model) SyncMainContentWidth() {
+	sideBarOffset := 0
+	if m.sidebar.IsOpen {
+		sideBarOffset = m.ctx.Config.Defaults.Preview.Width
+	}
+	m.width = m.screenWidth - sideBarOffset
+	log.Println(m.width, sideBarOffset)
 }
