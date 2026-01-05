@@ -2,7 +2,6 @@ package main
 
 import (
 	// "database/sql"
-	// "log"
 	"fmt"
 	"io"
 	"log"
@@ -16,6 +15,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/richeek45/todo-tui/components/footer"
 	"github.com/richeek45/todo-tui/components/sidebar"
 	"github.com/richeek45/todo-tui/config"
 	"github.com/richeek45/todo-tui/context"
@@ -36,10 +36,8 @@ type Model struct {
 	choice   string
 	list     list.Model
 	sidebar  sidebar.Model
+	footer   footer.Model
 	quitting bool
-
-	width, height int
-	screenWidth   int
 
 	keys *keys.KeyMap
 	ctx  *context.ProgramContext
@@ -53,10 +51,6 @@ type itemDelegate struct {
 	ShowDescription bool
 }
 
-var (
-	quitTextStyle = lipgloss.NewStyle().Margin(1, 0, 2, 4)
-)
-
 func NewModel(items []list.Item) Model {
 	m := Model{
 		list:    list.New(items, itemDelegate{ShowDescription: true}, 0, 0),
@@ -66,6 +60,9 @@ func NewModel(items []list.Item) Model {
 
 	m.ctx = &context.ProgramContext{}
 
+	m.footer = footer.NewModel(m.ctx)
+	m.list.SetShowHelp(false)
+
 	return m
 }
 
@@ -74,8 +71,8 @@ func (m Model) InitScreen() tea.Msg {
 	return initMsg{Config: cfg}
 }
 
-func (d itemDelegate) Height() int                             { return 1 }
-func (d itemDelegate) Spacing() int                            { return 2 }
+func (d itemDelegate) Height() int                             { return 2 }
+func (d itemDelegate) Spacing() int                            { return 1 }
 func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
 	var (
@@ -147,6 +144,10 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var (
+		listCmd    tea.Cmd
+		sidebarCmd tea.Cmd
+	)
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -162,16 +163,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			_, ok := m.list.SelectedItem().(item)
 			if ok {
 				m.sidebar.IsOpen = !m.sidebar.IsOpen
-				log.Println(m.sidebar.IsOpen)
 				m.SyncMainContentWidth()
 			}
+		case key.Matches(msg, m.keys.Help):
+			_, v := docStyle.GetFrameSize()
+			if !m.footer.ShowAll {
+				m.ctx.MainContentHeight = m.ctx.ScreenHeight - v - context.ExpandedHelpHeight
+			} else {
+				m.ctx.MainContentHeight = m.ctx.ScreenHeight - v - context.FooterHeight
+			}
+			m.list.SetHeight(m.ctx.MainContentHeight)
+
+			m.footer.ShowAll = !m.footer.ShowAll
 		}
 	case tea.WindowSizeMsg:
-		h, v := docStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v)
-		m.width = msg.Width - h
-		m.height = msg.Height - v
-		m.screenWidth = msg.Width
+		m.onWindowSizeChanged(msg)
 	case initMsg:
 		m.ctx.Config = &msg.Config
 		m.ctx.Theme = theme.ParseTheme()
@@ -180,21 +186,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sidebar.IsOpen = m.ctx.Config.Defaults.Preview.Open
 		m.SyncMainContentWidth()
 	}
+	m.SyncProgramContext(m.ctx)
+	m.SyncSideBar()
 
-	var cmd tea.Cmd
-	m.list, cmd = m.list.Update(msg)
-	return m, cmd
+	var cmds []tea.Cmd
+	m.list, listCmd = m.list.Update(msg)
+	m.sidebar, sidebarCmd = m.sidebar.Update(msg)
+	cmds = append(cmds, listCmd, sidebarCmd)
+	return m, tea.Batch(cmds...)
 }
 
 func (m Model) View() string {
+	if m.ctx.Config == nil {
+		return lipgloss.Place(m.ctx.ScreenWidth, m.ctx.ScreenHeight, lipgloss.Center, lipgloss.Center, "Reading config...")
+	}
 
-	if m.choice != "" {
-		return quitTextStyle.Render(fmt.Sprintf("%s? Sounds good to me.", m.choice))
-	}
-	if m.quitting {
-		return quitTextStyle.Render("Not hungry? That’s cool.")
-	}
-	return docStyle.Render(m.list.View())
+	s := strings.Builder{}
+
+	s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, m.list.View(), m.sidebar.View()))
+	s.WriteString("\n")
+	s.WriteString(m.footer.View())
+
+	return docStyle.Render(s.String())
 }
 
 func main() {
@@ -280,6 +293,26 @@ func main() {
 
 }
 
+func (m *Model) SyncProgramContext(ctx *context.ProgramContext) {
+	m.sidebar.UpdateProgramContext(m.ctx)
+}
+
+func (m *Model) onWindowSizeChanged(msg tea.WindowSizeMsg) {
+	log.Println("window size changed", "width", msg.Width, "height", msg.Height)
+	h, v := docStyle.GetFrameSize()
+	log.Println("frame width and height", h, v)
+	m.ctx.ScreenWidth = msg.Width
+	m.ctx.ScreenHeight = msg.Height
+	if m.footer.ShowAll {
+		m.ctx.MainContentHeight = msg.Height - v - context.ExpandedHelpHeight
+	} else {
+		m.ctx.MainContentHeight = msg.Height - v - context.FooterHeight
+	}
+	m.list.SetSize(msg.Width-h, m.ctx.MainContentHeight)
+	m.ctx.MainContentWidth = msg.Width
+	m.footer.SetWidth(msg.Width)
+}
+
 func (m *Model) SyncSideBar() {
 	// width := m.GetSidebarContentWidth()
 	m.sidebar.SetContent(fmt.Sprintf("Whatever content I want to put here.... %d", 1000))
@@ -290,6 +323,5 @@ func (m *Model) SyncMainContentWidth() {
 	if m.sidebar.IsOpen {
 		sideBarOffset = m.ctx.Config.Defaults.Preview.Width
 	}
-	m.width = m.screenWidth - sideBarOffset
-	log.Println(m.width, sideBarOffset)
+	m.ctx.ScreenWidth = m.ctx.ScreenWidth - sideBarOffset
 }

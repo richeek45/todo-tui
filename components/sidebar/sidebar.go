@@ -70,6 +70,10 @@ func (m Model) View() string {
 
 }
 
+func (m Model) GetData() string {
+	return m.data
+}
+
 func (m *Model) SetContent(data string) {
 	m.data = data
 	m.viewport.SetContent(data)
