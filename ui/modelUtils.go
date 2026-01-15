@@ -23,3 +23,19 @@ func (m *Model) GetCurrViewSections() []section.Section {
 		return m.priorityTasks
 	}
 }
+
+func (m *Model) getPreviousSectionId() int {
+	return max(0, m.currSectionId-1)
+}
+
+func (m *Model) getNextSectionId() int {
+	return min(len(m.getCurrentViewSections())-1, m.currSectionId+1)
+}
+
+func (m *Model) getSectionAt(id int) section.Section {
+	sections := m.getCurrentViewSections()
+	if len(sections) <= id {
+		return nil
+	}
+	return sections[id]
+}

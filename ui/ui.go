@@ -76,6 +76,7 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
+		cmd        tea.Cmd
 		listCmd    tea.Cmd
 		sidebarCmd tea.Cmd
 		// currSection = m.GetCurrSection()
@@ -86,7 +87,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
-		case key.Matches(msg, m.keys.Enter):
+		case key.Matches(msg, m.keys.PreviousSection):
+			log.Print("PreviousSection")
+
+			prevSection := m.getSectionAt(m.getPreviousSectionId())
+			if prevSection != nil {
+				m.setCurrSectionId(prevSection.GetId())
+				// cmd = m.onViewedRowChanged()
+			}
+		case key.Matches(msg, m.keys.NextSection):
+			log.Print("NextSection")
+			nextSection := m.getSectionAt(m.getNextSectionId())
+			if nextSection != nil {
+				m.setCurrSectionId(nextSection.GetId())
+				// cmd = m.onViewedRowChanged()
+			}
+
+		// case key.Matches(msg, m.keys.Enter):
 
 		case key.Matches(msg, m.keys.TogglePreview):
 			// _, ok := m.list.SelectedItem().(item)
@@ -112,14 +129,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ctx.Styles = context.InitStyles(m.ctx.Theme)
 		m.ctx.View = m.ctx.Config.Defaults.View
 
-		m.currSectionId = 1
-
 		m.sidebar.IsOpen = m.ctx.Config.Defaults.Preview.Open
 		m.SyncMainContentWidth()
 
 		newSections, fetchSectionsCmds := m.fetchAllViewSections()
 		m.setCurrentViewSections(newSections)
-		m.tabs.SetCurrentSectionId(1)
+		m.setCurrSectionId(1)
 
 		cmds = append(cmds, fetchSectionsCmds)
 	}
@@ -127,7 +142,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.SyncSideBar()
 
 	m.sidebar, sidebarCmd = m.sidebar.Update(msg)
-	cmds = append(cmds, listCmd, sidebarCmd)
+	cmds = append(cmds, cmd, listCmd, sidebarCmd)
 	return m, tea.Batch(cmds...)
 }
 
@@ -379,4 +394,18 @@ func (m *Model) UpdateCurrentSection(msg tea.Msg) tea.Cmd {
 	}
 
 	return m.updateSection(section.GetId(), section.GetType(), msg)
+}
+
+func (m *Model) setCurrSectionId(newSectionId int) {
+	m.currSectionId = newSectionId
+	m.tabs.SetCurrentSectionId(newSectionId)
+}
+
+func (m *Model) onViewedRowChanged() tea.Cmd {
+	var cmd tea.Cmd
+
+	m.SyncSideBar()
+	m.sidebar.ScrollToTop()
+
+	return cmd
 }

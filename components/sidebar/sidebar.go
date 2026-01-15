@@ -70,6 +70,14 @@ func (m Model) View() string {
 
 }
 
+func (m *Model) ScrollToTop() {
+	m.viewport.GotoTop()
+}
+
+func (m *Model) ScrollToBottom() {
+	m.viewport.GotoBottom()
+}
+
 func (m Model) GetData() string {
 	return m.data
 }

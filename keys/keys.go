@@ -3,14 +3,16 @@ package keys
 import "github.com/charmbracelet/bubbles/key"
 
 type KeyMap struct {
-	Up            key.Binding
-	Down          key.Binding
-	TogglePreview key.Binding
-	Quit          key.Binding
-	Enter         key.Binding
-	PageUp        key.Binding
-	PageDown      key.Binding
-	Help          key.Binding
+	Up              key.Binding
+	Down            key.Binding
+	PreviousSection key.Binding
+	NextSection     key.Binding
+	TogglePreview   key.Binding
+	Quit            key.Binding
+	Enter           key.Binding
+	PageUp          key.Binding
+	PageDown        key.Binding
+	Help            key.Binding
 }
 
 var Keys = &KeyMap{
@@ -21,6 +23,14 @@ var Keys = &KeyMap{
 	Down: key.NewBinding(
 		key.WithKeys("down", "j"),
 		key.WithKeys("↑/j", "move down"),
+	),
+	PreviousSection: key.NewBinding(
+		key.WithKeys("left", "h"),
+		key.WithHelp("←/h", "previous section"),
+	),
+	NextSection: key.NewBinding(
+		key.WithKeys("right", "l"),
+		key.WithHelp("→/l", "next section"),
 	),
 	TogglePreview: key.NewBinding(
 		key.WithKeys("p"),
