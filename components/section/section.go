@@ -15,18 +15,20 @@ import (
 )
 
 type BaseModel struct {
-	Id          int
-	ctx         *context.ProgramContext
-	Config      config.SectionConfig
-	IsSearching bool
-	IsLoading   bool
-	PageInfo    *config.PageInfo
-	Spinner     spinner.Model
-	SearchBar   search.Model
-	Table       table.Model
-	Type        string
-	Columns     []table.Column
-	TotalCount  int
+	Id              int
+	Ctx             *context.ProgramContext
+	Config          config.SectionConfig
+	IsSearching     bool
+	IsLoading       bool
+	PageInfo        *config.PageInfo
+	Spinner         spinner.Model
+	SearchBar       search.Model
+	Table           table.Model
+	SearchValue     string
+	Type            string
+	Columns         []table.Column
+	TotalCount      int
+	LastFetchTaskId string
 }
 
 type NewSectionOptions struct {
@@ -42,7 +44,7 @@ func NewModel(
 	options NewSectionOptions,
 ) BaseModel {
 	m := BaseModel{
-		ctx:      ctx,
+		Ctx:      ctx,
 		Config:   options.Config,
 		PageInfo: nil,
 		Spinner:  spinner.Model{Spinner: spinner.Ellipsis},
@@ -58,7 +60,7 @@ func NewModel(
 		TotalCount:  0,
 	}
 
-	emptyMsg := m.ctx.Styles.Section.EmptyStateStyle.Render(
+	emptyMsg := m.Ctx.Styles.Section.EmptyStateStyle.Render(
 		"No were found that match the given filters",
 	)
 
@@ -78,36 +80,46 @@ func NewModel(
 
 func (m *BaseModel) GetDimensions() constants.Dimensions {
 	return constants.Dimensions{
-		Width:  max(0, m.ctx.Styles.Section.ContainerStyle.GetHorizontalPadding()),
-		Height: max(0, m.ctx.MainContentHeight-common.SearchHeight),
+		Width:  max(0, m.Ctx.Styles.Section.ContainerStyle.GetHorizontalPadding()),
+		Height: max(0, m.Ctx.MainContentHeight-common.SearchHeight),
 	}
 }
 
 type Section interface {
 	Identifier
+	Component
 	Table
 	Search
 	GetConfig() config.SectionConfig
 	UpdateProgramContext(ctx *context.ProgramContext)
-	GetTotalCount() int
 }
 
 type Identifier interface {
-	GetId()
-	GetType()
+	GetId() int
+	GetType() string
+}
+
+type Component interface {
+	Update(msg tea.Msg) (Section, tea.Cmd)
+	View() string
 }
 
 type Table interface {
-	CurrRow()
-	NextRow()
-	PrevRow()
-	FirstItem()
-	LastItem()
+	NumRows() int
+	ResetRows()
+	CurrRow() int
+	NextRow() int
+	PrevRow() int
+	FirstItem() int
+	LastItem() int
+	GetIsLoading() bool
+	BuildRows() []table.Row
+	FetchNextPageSectionRows() []tea.Cmd
 }
 
 type Search interface {
-	IsSearchFocused()
-	SetIsSearching()
+	IsSearchFocused() bool
+	SetIsSearching(val bool) tea.Cmd
 }
 
 func (m *BaseModel) GetMainContent() string {
@@ -121,8 +133,8 @@ func (m *BaseModel) GetMainContent() string {
 			fmt.Sprintf(
 				"%s you can search query by pressing %s and submitting it with %s",
 				lipgloss.NewStyle().Bold(true).Render(" Tip:"),
-				m.ctx.Styles.Section.KeyStyle.Render("/"),
-				m.ctx.Styles.Section.KeyStyle.Render("Enter"),
+				m.Ctx.Styles.Section.KeyStyle.Render("/"),
+				m.Ctx.Styles.Section.KeyStyle.Render("Enter"),
 			),
 		)
 	}
@@ -133,7 +145,7 @@ func (m *BaseModel) GetMainContent() string {
 func (m BaseModel) View() string {
 	search := m.SearchBar.View()
 
-	return m.ctx.Styles.Section.ContainerStyle.
+	return m.Ctx.Styles.Section.ContainerStyle.
 		Render(
 			lipgloss.JoinVertical(
 				lipgloss.Left,
@@ -165,6 +177,12 @@ func (m *BaseModel) GetId() int {
 
 func (m *BaseModel) GetType() string {
 	return m.Type
+}
+
+func (m *BaseModel) ResetRows() {
+	m.Table.Rows = nil
+	m.ResetPageInfo()
+	m.Table.ResetCurrItem()
 }
 
 func (m *BaseModel) CurrRow() int {
@@ -204,4 +222,21 @@ func (m *BaseModel) SetIsSearching(val bool) tea.Cmd {
 		m.SearchBar.Blur()
 		return nil
 	}
+}
+
+func (m *BaseModel) UpdateTotalItemsCount(count int) {
+	m.Table.UpdateTotalItemsCount(count)
+}
+
+func (m *BaseModel) UpdateProgramContext(ctx *context.ProgramContext) {
+	m.Ctx = ctx
+	newDimensions := m.GetDimensions()
+	tableDimensions := constants.Dimensions{
+		Height: max(0, newDimensions.Height-2),
+		Width:  max(0, newDimensions.Width),
+	}
+	m.Table.SetDimensions(tableDimensions)
+	m.Table.UpdateProgramContext(ctx)
+	m.Table.SyncViewportContent()
+	m.SearchBar.UpdateProgramContext(ctx)
 }

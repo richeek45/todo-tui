@@ -16,6 +16,7 @@ import (
 	"github.com/richeek45/todo-tui/components/section"
 	"github.com/richeek45/todo-tui/components/sidebar"
 	"github.com/richeek45/todo-tui/components/tabs"
+	"github.com/richeek45/todo-tui/components/tasksection"
 	"github.com/richeek45/todo-tui/config"
 	"github.com/richeek45/todo-tui/context"
 	"github.com/richeek45/todo-tui/keys"
@@ -23,8 +24,7 @@ import (
 )
 
 const (
-	// bullet   = "•"
-	ellipsis = "…"
+// bullet   = "•"
 )
 
 type Item struct {
@@ -46,10 +46,6 @@ type Model struct {
 
 type initMsg struct {
 	Config config.Config
-}
-
-type itemDelegate struct {
-	ShowDescription bool
 }
 
 func NewModel(items []Item) Model {
@@ -82,6 +78,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		listCmd    tea.Cmd
 		sidebarCmd tea.Cmd
+		// currSection = m.GetCurrSection()
+		cmds []tea.Cmd
 	)
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -114,13 +112,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ctx.Styles = context.InitStyles(m.ctx.Theme)
 		m.ctx.View = m.ctx.Config.Defaults.View
 
+		m.currSectionId = 1
+
 		m.sidebar.IsOpen = m.ctx.Config.Defaults.Preview.Open
 		m.SyncMainContentWidth()
+
+		newSections, fetchSectionsCmds := m.fetchAllViewSections()
+		m.setCurrentViewSections(newSections)
+		m.tabs.SetCurrentSectionId(1)
+
+		cmds = append(cmds, fetchSectionsCmds)
 	}
 	m.SyncProgramContext(m.ctx)
 	m.SyncSideBar()
 
-	var cmds []tea.Cmd
 	m.sidebar, sidebarCmd = m.sidebar.Update(msg)
 	cmds = append(cmds, listCmd, sidebarCmd)
 	return m, tea.Batch(cmds...)
@@ -134,8 +139,17 @@ func (m Model) View() string {
 	s := strings.Builder{}
 
 	s.WriteString(m.tabs.View())
-	// s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, m.tabs.View(), m.sidebar.View()))
-	s.WriteString("\n")
+
+	// currSection := m.GetCurrSection()
+
+	// if currSection != nil {
+	// 	s.WriteString(lipgloss.JoinHorizontal(
+	// 		lipgloss.Top,
+	// 		m.GetCurrSection().View(),
+	// 		m.sidebar.View(),
+	// 	))
+	// }
+	// s.WriteString("\n")
 	s.WriteString(m.footer.View())
 
 	return s.String()
@@ -223,15 +237,21 @@ func Run() {
 }
 
 func (m *Model) SyncProgramContext(ctx *context.ProgramContext) {
+
+	for _, section := range m.getCurrentViewSections() {
+		section.UpdateProgramContext(m.ctx)
+	}
 	m.sidebar.UpdateProgramContext(m.ctx)
+	m.tabs.UpdateProgramContext(m.ctx)
+	m.footer.UpdateProgramContext(m.ctx)
 }
 
 func (m *Model) onWindowSizeChanged(msg tea.WindowSizeMsg) {
 	log.Println("window size changed", "width", msg.Width, "height", msg.Height)
-	h, v := docStyle.GetFrameSize()
-	log.Println("frame width and height", h, v)
+	_, v := docStyle.GetFrameSize()
 	m.ctx.ScreenWidth = msg.Width
 	m.ctx.ScreenHeight = msg.Height
+	log.Println("ScreenWidth=", m.ctx.ScreenWidth, " ScreenHeight=", m.ctx.ScreenHeight)
 	if m.footer.ShowAll {
 		m.ctx.MainContentHeight = msg.Height - v - context.ExpandedHelpHeight
 	} else {
@@ -252,4 +272,111 @@ func (m *Model) SyncMainContentWidth() {
 		sideBarOffset = m.ctx.Config.Defaults.Preview.Width
 	}
 	m.ctx.ScreenWidth = m.ctx.ScreenWidth - sideBarOffset
+	log.Println("m.ctx.ScreenWidth=", m.ctx.ScreenWidth, " ScreenHeight=", m.ctx.ScreenHeight)
+}
+
+func (m *Model) fetchAllViewSections() ([]section.Section, tea.Cmd) {
+	cmds := make([]tea.Cmd, 0)
+	cmds = append(cmds, m.tabs.SetAllLoading()...)
+
+	log.Print("CTX VIEW =", m.ctx.View)
+
+	switch m.ctx.View {
+	case config.Priority:
+		section, taskCmds1 := tasksection.FetchAllSections(m.ctx, m.priorityTasks)
+		cmds = append(cmds, taskCmds1)
+		return section, tea.Batch(cmds...)
+	case config.Status:
+		section, taskCmds2 := tasksection.FetchAllSections(m.ctx, m.statusTasks)
+		cmds = append(cmds, taskCmds2)
+		return section, tea.Batch(cmds...)
+	default:
+		section, taskCmds2 := tasksection.FetchAllSections(m.ctx, m.statusTasks)
+		cmds = append(cmds, taskCmds2)
+		return section, tea.Batch(cmds...)
+	}
+}
+
+func (m *Model) setCurrentViewSections(newSections []section.Section) {
+	if newSections == nil {
+		return
+	}
+
+	missingSearchSection := true
+	s := make([]section.Section, 0)
+
+	if m.ctx.View == config.Status {
+		if missingSearchSection {
+			search := tasksection.NewModel(
+				0,
+				m.ctx,
+				config.SectionConfig{
+					Title:   "",
+					Filters: "archived:false",
+				},
+			)
+			s = append(s, &search)
+		}
+
+		m.statusTasks = append(s, newSections...)
+		newSections = m.statusTasks
+	}
+
+	if m.ctx.View == config.Priority {
+		if missingSearchSection {
+			search := tasksection.NewModel(
+				0,
+				m.ctx,
+				config.SectionConfig{
+					Title:   "",
+					Filters: "archived:false",
+				},
+			)
+			s = append(s, &search)
+		}
+
+		m.priorityTasks = append(s, newSections...)
+		newSections = m.priorityTasks
+	}
+
+	m.tabs.SetSections(newSections)
+}
+
+func (m *Model) getCurrentViewSections() []section.Section {
+	switch m.ctx.View {
+	case config.Status:
+		return m.statusTasks
+	case config.Priority:
+		return m.priorityTasks
+	default:
+		return m.priorityTasks
+	}
+}
+
+func (m *Model) updateSection(id int, sType string, msg tea.Msg) (cmd tea.Cmd) {
+	var updatedSection section.Section
+	switch sType {
+	case tasksection.SectionType:
+		updatedSection, cmd = m.statusTasks[id].Update(msg)
+		m.statusTasks[id] = updatedSection
+	}
+
+	// currSection := m.GetCurrSection()
+	// if currSection != nil && id == currSection.GetId() {
+	// 	if _, ok := msg.(prssection.SectionPullRequestsFetchedMsg); ok {
+	// 		cmd = m.onViewedRowChanged()
+	// 	}
+	// }
+
+	return cmd
+}
+
+func (m *Model) UpdateCurrentSection(msg tea.Msg) tea.Cmd {
+	section := m.GetCurrSection()
+
+	if section == nil {
+		return nil
+	}
+
+	return m.updateSection(section.GetId(), section.GetType(), msg)
 }
