@@ -1,6 +1,8 @@
 package carousel
 
 import (
+	"log"
+
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -170,6 +172,8 @@ func (m *Model) UpdateSize() {
 	right := min(m.cursor+1, len(m.items))
 	lastRight := right
 
+	log.Print("items = ", m.items, " len(m.items)=", len(m.items), " m.width=", m.width)
+
 	for len(m.items) > 0 && leftOver > 0 && (left >= 0 || right < len(m.items)) {
 		if currDirection < 0 && left >= 0 {
 			lItem := m.renderItem(left, leftOver)
@@ -180,6 +184,7 @@ func (m *Model) UpdateSize() {
 		} else if currDirection > 0 && right < len(m.items) {
 			rItem := m.renderItem(right, leftOver)
 			leftOver -= lipgloss.Width(rItem)
+			itemsContent = lipgloss.JoinHorizontal(lipgloss.Top, itemsContent, rItem)
 			lastRight = right
 			right++
 		}
@@ -191,6 +196,7 @@ func (m *Model) UpdateSize() {
 		} else {
 			currDirection = currDirection * -1
 		}
+		log.Println("leftOver=", leftOver, " left=", left, " right=", right)
 	}
 
 	lastRight = min(lastRight, len(m.items)-1)
