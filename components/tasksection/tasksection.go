@@ -179,6 +179,29 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 		// }
 
 		tasks := make([]context.Task, 0)
+		task := context.Task{
+			Id:           "1",
+			StartText:    "Starting",
+			FinishedText: "Ongoing",
+			Status:       context.NotStarted,
+			Error:        nil,
+		}
+		task2 := context.Task{
+			Id:           "2",
+			StartText:    "Started",
+			FinishedText: "Finished",
+			Status:       context.NotStarted,
+			Error:        nil,
+		}
+		task3 := context.Task{
+			Id:           "2",
+			StartText:    "Will Start",
+			FinishedText: "Completed",
+			Status:       context.NotStarted,
+			Error:        nil,
+		}
+
+		tasks = append(tasks, task, task2, task3)
 
 		return constants.TaskFinishedMsg{
 			SectionId:   m.Id,
@@ -186,9 +209,9 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 			TaskId:      taskId,
 			Msg: SectionTaskDataFetchedMsg{
 				Tasks:      tasks,
-				TotalCount: 0,
-				PageInfo:   *m.PageInfo,
-				TaskId:     taskId,
+				TotalCount: 1, // res.TotalCount
+				// PageInfo:   nil, // res.PageInfo
+				TaskId: taskId,
 			},
 		}
 	}
@@ -223,9 +246,9 @@ func FetchAllSections(
 			sectionModel.LastFetchTaskId = oldSection.LastFetchTaskId
 		}
 		sections = append(sections, &sectionModel)
-		// fetchPRsCmds = append(
-		// 	fetchPRsCmds,
-		// 	sectionModel.FetchNextPageSectionRows()...)
+		fetchPRsCmds = append(
+			fetchPRsCmds,
+			sectionModel.FetchNextPageSectionRows()...)
 	}
 	return sections, tea.Batch(fetchPRsCmds...)
 }

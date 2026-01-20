@@ -1,7 +1,6 @@
 package ui
 
 import (
-	// "database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -18,7 +17,9 @@ import (
 	"github.com/richeek45/todo-tui/components/tabs"
 	"github.com/richeek45/todo-tui/components/tasksection"
 	"github.com/richeek45/todo-tui/config"
+	"github.com/richeek45/todo-tui/constants"
 	"github.com/richeek45/todo-tui/context"
+	"github.com/richeek45/todo-tui/database"
 	"github.com/richeek45/todo-tui/keys"
 	"github.com/richeek45/todo-tui/theme"
 )
@@ -137,7 +138,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.setCurrSectionId(1)
 
 		cmds = append(cmds, fetchSectionsCmds)
+
+	case constants.TaskFinishedMsg:
+		sectionCmd := m.updateSection(msg.SectionId, msg.SectionType, msg.Msg)
+		cmds = append(cmds, sectionCmd)
+
+		// syncCmd := m.SyncSideBar()
+		// cmds = append(cmds, syncCmd)
 	}
+
 	m.SyncProgramContext(m.ctx)
 	m.SyncSideBar()
 
@@ -155,16 +164,16 @@ func (m Model) View() string {
 
 	s.WriteString(m.tabs.View())
 
-	// currSection := m.GetCurrSection()
+	currSection := m.GetCurrSection()
 
-	// if currSection != nil {
-	// 	s.WriteString(lipgloss.JoinHorizontal(
-	// 		lipgloss.Top,
-	// 		m.GetCurrSection().View(),
-	// 		m.sidebar.View(),
-	// 	))
-	// }
-	// s.WriteString("\n")
+	if currSection != nil {
+		s.WriteString(lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			m.GetCurrSection().View(),
+			m.sidebar.View(),
+		))
+	}
+	s.WriteString("\n")
 	s.WriteString(m.footer.View())
 
 	return s.String()
@@ -173,40 +182,12 @@ func (m Model) View() string {
 func Run() {
 	// notify()
 
-	// db, err := sql.Open("sqlite3", "./test.db")
+	db, err := database.NewDB("test.db")
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// defer db.Close()
-
-	// sqlStatement := `
-	// 	CREATE TABLE IF NOT EXISTS users (
-	// 	id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-	// 	name TEXT
-	// 	)
-	// `
-
-	// _, err = db.Exec(sqlStatement)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// log.Println("Table 'users' created successfully")
-
-	// _, err = db.Exec("INSERT INTO users(name) VALUES(?)", "John Doe")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// rows, err := db.Query("SELECT id, name FROM users")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// defer rows.Close()
-
-	// if err = rows.Err(); err != nil {
-	// 	log.Fatal(err)
-	// }
+	defer db.Close()
 
 	f, err := tea.LogToFile("debug.log", "debug")
 	if err != nil {

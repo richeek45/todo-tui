@@ -41,7 +41,6 @@ type LayoutConfig struct {
 	CreatedAt    ColumnConfig
 	Title        ColumnConfig
 	Description  ColumnConfig
-	Author       ColumnConfig
 	ReviewStatus ColumnConfig
 	State        ColumnConfig
 	Ci           ColumnConfig
@@ -70,12 +69,12 @@ var DefaultConfig = &Config{
 		View:      Status,
 		Layout: LayoutConfig{
 			UpdatedAt: ColumnConfig{
-				Width: utils.IntPtr(lipgloss.Width("2mo  ")),
+				Width: utils.IntPtr(lipgloss.Width("Updated at  ")),
 			},
 			CreatedAt: ColumnConfig{
-				Width: utils.IntPtr(lipgloss.Width("2mo  ")),
+				Width: utils.IntPtr(lipgloss.Width("Created at  ")),
 			},
-			Author: ColumnConfig{
+			Title: ColumnConfig{
 				Width: utils.IntPtr(15),
 			},
 			Description: ColumnConfig{

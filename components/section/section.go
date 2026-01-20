@@ -80,7 +80,7 @@ func NewModel(
 
 func (m *BaseModel) GetDimensions() constants.Dimensions {
 	return constants.Dimensions{
-		Width:  max(0, m.Ctx.Styles.Section.ContainerStyle.GetHorizontalPadding()),
+		Width:  max(0, m.Ctx.MainContentWidth-m.Ctx.Styles.Section.ContainerStyle.GetHorizontalPadding()),
 		Height: max(0, m.Ctx.MainContentHeight-common.SearchHeight),
 	}
 }

@@ -15,9 +15,9 @@ type TaskRow struct {
 func (t *TaskRow) ToTableRow() table.Row {
 
 	return table.Row{
-		"This",
-		"Again This",
-		"Well This",
+		t.Data.StartText,
+		t.Data.FinishedText,
+		string(t.Data.Status),
 		"Now This",
 	}
 

@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/richeek45/todo-tui/common"
 	"github.com/richeek45/todo-tui/components/listviewport"
 	"github.com/richeek45/todo-tui/constants"
 	"github.com/richeek45/todo-tui/context"
@@ -155,7 +156,7 @@ func (m *Model) RenderHeader() string {
 	header := ansi.Truncate(lipgloss.JoinHorizontal(lipgloss.Top, headerColumns...), m.dimensions.Width, constants.Ellipsis)
 	return m.ctx.Styles.Table.HeaderStyle.
 		Width(m.dimensions.Width).
-		Height(m.dimensions.Height).Render(header)
+		Height(common.HeaderHeight).Render(header)
 }
 
 func (m *Model) RenderBody() string {
