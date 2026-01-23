@@ -63,7 +63,7 @@ var DefaultConfig = &Config{
 	Defaults: Defaults{
 		Preview: PreviewConfig{
 			Open:  true,
-			Width: 20,
+			Width: 70,
 		},
 		TaskLimit: 10,
 		View:      Status,

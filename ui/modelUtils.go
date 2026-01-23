@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/richeek45/todo-tui/components/section"
 	"github.com/richeek45/todo-tui/config"
+	"github.com/richeek45/todo-tui/context"
 )
 
 func (m *Model) GetCurrSection() section.Section {
@@ -22,6 +23,14 @@ func (m *Model) GetCurrViewSections() []section.Section {
 	default:
 		return m.priorityTasks
 	}
+}
+
+func (m *Model) getCurrRowData() *context.Task {
+	section := m.GetCurrSection()
+	if section == nil {
+		return nil
+	}
+	return section.GetCurrRow()
 }
 
 func (m *Model) getPreviousSectionId() int {

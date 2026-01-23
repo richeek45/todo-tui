@@ -84,7 +84,7 @@ func (m Model) GetData() string {
 
 func (m *Model) SetContent(data string) {
 	m.data = data
-	m.viewport.SetContent(data)
+	m.viewport.SetContent("\n\n\n\n" + data)
 }
 
 func (m *Model) GetSidebarContentWidth() int {

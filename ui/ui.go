@@ -19,7 +19,6 @@ import (
 	"github.com/richeek45/todo-tui/config"
 	"github.com/richeek45/todo-tui/constants"
 	"github.com/richeek45/todo-tui/context"
-	"github.com/richeek45/todo-tui/database"
 	"github.com/richeek45/todo-tui/keys"
 	"github.com/richeek45/todo-tui/theme"
 )
@@ -77,41 +76,58 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
-		cmd        tea.Cmd
-		listCmd    tea.Cmd
-		sidebarCmd tea.Cmd
-		// currSection = m.GetCurrSection()
-		cmds []tea.Cmd
+		cmd         tea.Cmd
+		listCmd     tea.Cmd
+		sidebarCmd  tea.Cmd
+		currSection = m.GetCurrSection()
+		cmds        []tea.Cmd
 	)
 	switch msg := msg.(type) {
+
 	case tea.KeyMsg:
+
+		if currSection != nil && (currSection.IsSearchFocused()) {
+			cmd = m.updateSection(currSection.GetId(), currSection.GetType(), msg)
+			return m, cmd
+		}
+
 		switch {
 		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, m.keys.PreviousSection):
-			log.Print("PreviousSection")
-
 			prevSection := m.getSectionAt(m.getPreviousSectionId())
 			if prevSection != nil {
 				m.setCurrSectionId(prevSection.GetId())
 				// cmd = m.onViewedRowChanged()
 			}
 		case key.Matches(msg, m.keys.NextSection):
-			log.Print("NextSection")
 			nextSection := m.getSectionAt(m.getNextSectionId())
 			if nextSection != nil {
 				m.setCurrSectionId(nextSection.GetId())
 				// cmd = m.onViewedRowChanged()
 			}
+		case key.Matches(msg, m.keys.Down):
+			prevRow := currSection.CurrRow()
+			nextRow := currSection.NextRow()
+
+			if prevRow != nextRow && nextRow == currSection.NumRows()-1 {
+				cmds = append(cmds, currSection.FetchNextPageSectionRows()...)
+			}
+			// cmd = m.onViewedRowChanged()
+		case key.Matches(msg, m.keys.Up):
+			currSection.PrevRow()
+
+		case key.Matches(msg, m.keys.Search):
+			if currSection != nil {
+				cmd = currSection.SetIsSearching(true)
+				return m, cmd
+			}
 
 		// case key.Matches(msg, m.keys.Enter):
 
 		case key.Matches(msg, m.keys.TogglePreview):
-			// _, ok := m.list.SelectedItem().(item)
-			// if ok {
-			// 	m.sidebar.IsOpen = !m.sidebar.IsOpen
-			// 	m.SyncMainContentWidth()
-			// }
+			m.sidebar.IsOpen = !m.sidebar.IsOpen
+			m.SyncMainContentWidth()
 		case key.Matches(msg, m.keys.Help):
 			_, v := docStyle.GetFrameSize()
 			if !m.footer.ShowAll {
@@ -182,12 +198,16 @@ func (m Model) View() string {
 func Run() {
 	// notify()
 
-	db, err := database.NewDB("test.db")
-	if err != nil {
-		log.Fatal(err)
-	}
+	// db, err := database.NewDB("test.db")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
-	defer db.Close()
+	// defer db.Close()
+
+	// if err := database.RunMigrations(db); err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	f, err := tea.LogToFile("debug.log", "debug")
 	if err != nil {
@@ -247,7 +267,6 @@ func (m *Model) onWindowSizeChanged(msg tea.WindowSizeMsg) {
 	_, v := docStyle.GetFrameSize()
 	m.ctx.ScreenWidth = msg.Width
 	m.ctx.ScreenHeight = msg.Height
-	log.Println("ScreenWidth=", m.ctx.ScreenWidth, " ScreenHeight=", m.ctx.ScreenHeight)
 	if m.footer.ShowAll {
 		m.ctx.MainContentHeight = msg.Height - v - context.ExpandedHelpHeight
 	} else {
@@ -258,8 +277,12 @@ func (m *Model) onWindowSizeChanged(msg tea.WindowSizeMsg) {
 }
 
 func (m *Model) SyncSideBar() {
-	// width := m.GetSidebarContentWidth()
-	m.sidebar.SetContent(fmt.Sprintf("Whatever content I want to put here.... %d", 1000))
+	// width := m.sidebar.GetSidebarContentWidth()
+	currRowData := m.getCurrRowData()
+	if currRowData == nil {
+		return
+	}
+	m.sidebar.SetContent(string(currRowData.Description))
 }
 
 func (m *Model) SyncMainContentWidth() {
@@ -267,8 +290,8 @@ func (m *Model) SyncMainContentWidth() {
 	if m.sidebar.IsOpen {
 		sideBarOffset = m.ctx.Config.Defaults.Preview.Width
 	}
-	m.ctx.ScreenWidth = m.ctx.ScreenWidth - sideBarOffset
-	log.Println("m.ctx.ScreenWidth=", m.ctx.ScreenWidth, " ScreenHeight=", m.ctx.ScreenHeight)
+	m.ctx.MainContentWidth = m.ctx.ScreenWidth - sideBarOffset
+	log.Println("m.ctx.ScreenWidth=", m.ctx.ScreenWidth)
 }
 
 func (m *Model) fetchAllViewSections() ([]section.Section, tea.Cmd) {

@@ -144,6 +144,16 @@ func (m *Model) NumRows() int {
 	return len(m.Tasks)
 }
 
+func (m *Model) GetCurrRow() *context.Task {
+	if len(m.Tasks) == 0 {
+		return nil
+	}
+
+	i := m.Table.GetCurrItem()
+
+	return &m.Tasks[i]
+}
+
 func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 	if m == nil {
 		return nil
@@ -183,6 +193,8 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 			Id:           "1",
 			StartText:    "Starting",
 			FinishedText: "Ongoing",
+			Title:        "First Task",
+			Description:  "This is going to be a long title for the thing that I am going to talk about. Nothing can change that",
 			Status:       context.NotStarted,
 			Error:        nil,
 		}
@@ -190,6 +202,8 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 			Id:           "2",
 			StartText:    "Started",
 			FinishedText: "Finished",
+			Title:        "Second Task",
+			Description:  "How life has changed since the time I have first started doing something that means some other thing. Well, no",
 			Status:       context.NotStarted,
 			Error:        nil,
 		}
@@ -197,6 +211,8 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 			Id:           "2",
 			StartText:    "Will Start",
 			FinishedText: "Completed",
+			Title:        "Third Taskj",
+			Description:  "Wow, still this is working. I cannot believe it. The brain can spew nonsense if we keep prompting it to provide something",
 			Status:       context.NotStarted,
 			Error:        nil,
 		}

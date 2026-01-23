@@ -8,6 +8,7 @@ type KeyMap struct {
 	PreviousSection key.Binding
 	NextSection     key.Binding
 	TogglePreview   key.Binding
+	Search          key.Binding
 	Quit            key.Binding
 	Enter           key.Binding
 	PageUp          key.Binding
@@ -22,7 +23,7 @@ var Keys = &KeyMap{
 	),
 	Down: key.NewBinding(
 		key.WithKeys("down", "j"),
-		key.WithKeys("↑/j", "move down"),
+		key.WithHelp("↑/j", "move down"),
 	),
 	PreviousSection: key.NewBinding(
 		key.WithKeys("left", "h"),
@@ -35,6 +36,10 @@ var Keys = &KeyMap{
 	TogglePreview: key.NewBinding(
 		key.WithKeys("p"),
 		key.WithHelp("p", "Toggle View"),
+	),
+	Search: key.NewBinding(
+		key.WithKeys("/"),
+		key.WithHelp("/", "Search"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("ctrl+c", "esc", "q"),

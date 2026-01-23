@@ -50,7 +50,7 @@ func NewModel(
 		Spinner:  spinner.Model{Spinner: spinner.Ellipsis},
 		SearchBar: search.NewModel(ctx, search.SearchOptions{
 			Prefix:       "",
-			InitialValue: "Search Todo List",
+			InitialValue: "",
 			Placeholder:  "Search Todo List",
 		}),
 		Id:          options.Id,
@@ -107,6 +107,7 @@ type Component interface {
 type Table interface {
 	NumRows() int
 	ResetRows()
+	GetCurrRow() *context.Task
 	CurrRow() int
 	NextRow() int
 	PrevRow() int
