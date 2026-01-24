@@ -174,13 +174,13 @@ func (m *Model) UpdateSize() {
 		if currDirection < 0 && left >= 0 {
 			lItem := m.renderItem(left, leftOver)
 			leftOver -= lipgloss.Width(lItem)
-			itemsContent = lipgloss.JoinHorizontal(lipgloss.Top, lItem, itemsContent)
+			itemsContent = lipgloss.JoinHorizontal(lipgloss.Center, lItem, itemsContent)
 			lastLeft = left
 			left--
 		} else if currDirection > 0 && right < len(m.items) {
 			rItem := m.renderItem(right, leftOver)
 			leftOver -= lipgloss.Width(rItem)
-			itemsContent = lipgloss.JoinHorizontal(lipgloss.Top, itemsContent, rItem)
+			itemsContent = lipgloss.JoinHorizontal(lipgloss.Center, itemsContent, rItem)
 			lastRight = right
 			right++
 		}

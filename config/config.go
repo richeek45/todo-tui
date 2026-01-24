@@ -37,6 +37,7 @@ type ColumnConfig struct {
 }
 
 type LayoutConfig struct {
+	TaskId       ColumnConfig
 	UpdatedAt    ColumnConfig
 	CreatedAt    ColumnConfig
 	Title        ColumnConfig
@@ -74,10 +75,16 @@ var DefaultConfig = &Config{
 			CreatedAt: ColumnConfig{
 				Width: utils.IntPtr(lipgloss.Width("Created at  ")),
 			},
+			TaskId: ColumnConfig{
+				Width: utils.IntPtr(9),
+			},
 			Title: ColumnConfig{
-				Width: utils.IntPtr(15),
+				Width: utils.IntPtr(25),
 			},
 			Description: ColumnConfig{
+				Width: utils.IntPtr(15),
+			},
+			ReviewStatus: ColumnConfig{
 				Width: utils.IntPtr(15),
 			},
 			Lines: ColumnConfig{

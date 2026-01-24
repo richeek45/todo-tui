@@ -25,7 +25,7 @@ type Model struct {
 }
 
 func NewModel(ctx *context.ProgramContext) Model {
-	c := carousel.New(carousel.WithHeight(1), carousel.WithOverflowIndicators("←", "→"), carousel.WithSeparators())
+	c := carousel.New(carousel.WithHeight(2), carousel.WithOverflowIndicators("←", "→"), carousel.WithSeparators())
 	m := Model{
 		carousel: c,
 	}

@@ -15,10 +15,10 @@ type TaskRow struct {
 func (t *TaskRow) ToTableRow() table.Row {
 
 	return table.Row{
-		t.Data.StartText,
-		t.Data.FinishedText,
+		t.Data.Id,
+		t.Data.Title,
 		string(t.Data.Status),
-		"Now This",
+		string(t.Data.Priority),
 	}
 
 }

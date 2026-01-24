@@ -19,6 +19,7 @@ import (
 	"github.com/richeek45/todo-tui/config"
 	"github.com/richeek45/todo-tui/constants"
 	"github.com/richeek45/todo-tui/context"
+	"github.com/richeek45/todo-tui/database"
 	"github.com/richeek45/todo-tui/keys"
 	"github.com/richeek45/todo-tui/theme"
 )
@@ -32,6 +33,7 @@ type Item struct {
 }
 
 type Model struct {
+	repo          *database.TodoRepository
 	sidebar       sidebar.Model
 	tabs          tabs.Model
 	footer        footer.Model
@@ -49,7 +51,22 @@ type initMsg struct {
 }
 
 func NewModel(items []Item) Model {
+
+	db, err := database.NewDB("test.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer db.Close()
+
+	// if err := database.RunMigrations(db); err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	taskRepo := database.NewTodoRepository(db)
+
 	m := Model{
+		repo:        taskRepo,
 		keys:        keys.Keys,
 		sidebar:     sidebar.NewModel(),
 		taskSpinner: spinner.Model{Spinner: spinner.Ellipsis},
@@ -197,17 +214,6 @@ func (m Model) View() string {
 
 func Run() {
 	// notify()
-
-	// db, err := database.NewDB("test.db")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// defer db.Close()
-
-	// if err := database.RunMigrations(db); err != nil {
-	// 	log.Fatal(err)
-	// }
 
 	f, err := tea.LogToFile("debug.log", "debug")
 	if err != nil {

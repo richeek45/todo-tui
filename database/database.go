@@ -54,16 +54,3 @@ func RunMigrations(db *sql.DB) error {
 	return err
 
 }
-
-// sqlStatement := `
-// 		CREATE TABLE IF NOT EXISTS users (
-// 		id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-// 		name TEXT
-// 		)
-// 	`
-
-// 	_, err = db.Exec(sqlStatement)
-
-// 	_, err = db.Exec("INSERT INTO users(name) VALUES(?)", "John Doe")
-
-// 	rows, err := db.Query("SELECT id, name FROM users")

@@ -34,8 +34,6 @@ const (
 )
 
 type Task struct {
-	StartText    string
-	FinishedText string
 	Error        error
 	StartTime    time.Time
 	FinishedTime *time.Time

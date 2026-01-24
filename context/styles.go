@@ -62,7 +62,8 @@ func InitStyles(theme theme.Theme) Styles {
 	s.Tabs.ActiveTab = s.Tabs.Tab.
 		Faint(false).
 		Bold(true).
-		Background(theme.SelectedBackground).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("50")).
 		Foreground(theme.PrimaryText)
 
 	s.Tabs.OverflowIndicator = s.Common.FaintTextStyle.Bold(true).Padding(0, 1)
