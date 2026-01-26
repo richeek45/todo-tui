@@ -3,11 +3,12 @@ package taskrow
 import (
 	"github.com/richeek45/todo-tui/components/table"
 	"github.com/richeek45/todo-tui/context"
+	"github.com/richeek45/todo-tui/models"
 )
 
 type TaskRow struct {
 	Ctx     *context.ProgramContext
-	Data    context.Task
+	Data    models.Task
 	Columns []table.Column
 }
 

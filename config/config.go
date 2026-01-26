@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/charmbracelet/lipgloss"
+	"github.com/richeek45/todo-tui/models"
 	"github.com/richeek45/todo-tui/utils"
 )
 
@@ -20,10 +21,11 @@ type PageInfo struct {
 }
 
 type SectionConfig struct {
-	Title   string
-	Filters string
-	Limit   *int
-	Type    *FilterType
+	Title       string
+	FilterType  string
+	FilterValue string
+	Limit       *int
+	Type        *FilterType
 }
 
 type PreviewConfig struct {
@@ -94,16 +96,19 @@ var DefaultConfig = &Config{
 	},
 	TaskSections: []SectionConfig{
 		{
-			Title:   "TODO",
-			Filters: "status=todo",
+			Title:       "TODO",
+			FilterType:  string(Status),
+			FilterValue: string(models.NotStarted),
 		},
 		{
-			Title:   "IN PROGRESS",
-			Filters: "status=inprogress",
+			Title:       "IN PROGRESS",
+			FilterType:  string(Status),
+			FilterValue: string(models.InProgress),
 		},
 		{
-			Title:   "DONE",
-			Filters: "status=completed",
+			Title:       "DONE",
+			FilterType:  string(Status),
+			FilterValue: string(models.Completed),
 		},
 	},
 }

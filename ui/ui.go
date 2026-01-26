@@ -21,6 +21,7 @@ import (
 	"github.com/richeek45/todo-tui/context"
 	"github.com/richeek45/todo-tui/database"
 	"github.com/richeek45/todo-tui/keys"
+	"github.com/richeek45/todo-tui/models"
 	"github.com/richeek45/todo-tui/theme"
 )
 
@@ -33,7 +34,6 @@ type Item struct {
 }
 
 type Model struct {
-	repo          *database.TodoRepository
 	sidebar       sidebar.Model
 	tabs          tabs.Model
 	footer        footer.Model
@@ -43,7 +43,7 @@ type Model struct {
 	priorityTasks []section.Section
 	statusTasks   []section.Section
 	ctx           *context.ProgramContext
-	Tasks         map[string]context.Task
+	Tasks         map[string]models.Task
 }
 
 type initMsg struct {
@@ -57,22 +57,27 @@ func NewModel(items []Item) Model {
 		log.Fatal(err)
 	}
 
-	defer db.Close()
+	// defer db.Close()
 
-	// if err := database.RunMigrations(db); err != nil {
-	// 	log.Fatal(err)
-	// }
+	if err := database.RunMigrations(db); err != nil {
+		log.Fatal(err)
+	}
+
+	if len(os.Args) > 1 && os.Args[1] == "--seed" {
+		database.SeedSampleData(db)
+	}
 
 	taskRepo := database.NewTodoRepository(db)
 
 	m := Model{
-		repo:        taskRepo,
 		keys:        keys.Keys,
 		sidebar:     sidebar.NewModel(),
 		taskSpinner: spinner.Model{Spinner: spinner.Ellipsis},
 	}
 
-	m.ctx = &context.ProgramContext{}
+	m.ctx = &context.ProgramContext{
+		Repo: taskRepo,
+	}
 
 	m.tabs = tabs.NewModel(m.ctx)
 	m.footer = footer.NewModel(m.ctx)
@@ -308,15 +313,15 @@ func (m *Model) fetchAllViewSections() ([]section.Section, tea.Cmd) {
 
 	switch m.ctx.View {
 	case config.Priority:
-		section, taskCmds1 := tasksection.FetchAllSections(m.ctx, m.priorityTasks)
+		section, taskCmds1 := tasksection.FetchAllSections(m.ctx, m.priorityTasks, m.ctx.View)
 		cmds = append(cmds, taskCmds1)
 		return section, tea.Batch(cmds...)
 	case config.Status:
-		section, taskCmds2 := tasksection.FetchAllSections(m.ctx, m.statusTasks)
+		section, taskCmds2 := tasksection.FetchAllSections(m.ctx, m.statusTasks, m.ctx.View)
 		cmds = append(cmds, taskCmds2)
 		return section, tea.Batch(cmds...)
 	default:
-		section, taskCmds2 := tasksection.FetchAllSections(m.ctx, m.statusTasks)
+		section, taskCmds2 := tasksection.FetchAllSections(m.ctx, m.statusTasks, m.ctx.View)
 		cmds = append(cmds, taskCmds2)
 		return section, tea.Batch(cmds...)
 	}
@@ -336,8 +341,9 @@ func (m *Model) setCurrentViewSections(newSections []section.Section) {
 				0,
 				m.ctx,
 				config.SectionConfig{
-					Title:   "",
-					Filters: "archived:false",
+					Title:       "",
+					FilterType:  "archived",
+					FilterValue: "false",
 				},
 			)
 			s = append(s, &search)
@@ -353,9 +359,9 @@ func (m *Model) setCurrentViewSections(newSections []section.Section) {
 				0,
 				m.ctx,
 				config.SectionConfig{
-					Title:   "",
-					Filters: "archived:false",
-				},
+					Title:       "",
+					FilterType:  "archived",
+					FilterValue: "false"},
 			)
 			s = append(s, &search)
 		}

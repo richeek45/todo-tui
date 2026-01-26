@@ -1,7 +1,9 @@
 package tasksection
 
 import (
+	ctx "context"
 	"fmt"
+	"log"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -11,15 +13,16 @@ import (
 	"github.com/richeek45/todo-tui/config"
 	"github.com/richeek45/todo-tui/constants"
 	"github.com/richeek45/todo-tui/context"
+	"github.com/richeek45/todo-tui/models"
 )
 
 type Model struct {
 	section.BaseModel
-	Tasks []context.Task
+	Tasks []models.Task
 }
 
 type SectionTaskDataFetchedMsg struct {
-	Tasks      []context.Task
+	Tasks      []models.Task
 	TotalCount int
 	PageInfo   config.PageInfo
 	TaskId     string
@@ -40,10 +43,11 @@ func NewModel(
 		section.NewSectionOptions{
 			Id: id,
 			Config: config.SectionConfig{
-				Title:   cfg.Title,
-				Filters: cfg.Filters,
-				Limit:   cfg.Limit,
-				Type:    cfg.Type,
+				Title:       cfg.Title,
+				FilterType:  cfg.FilterType,
+				FilterValue: cfg.FilterValue,
+				Limit:       cfg.Limit,
+				Type:        cfg.Type,
 			},
 			Type:    SectionType,
 			Columns: GetSectionColumns(ctx),
@@ -102,16 +106,16 @@ func GetSectionColumns(ctx *context.ProgramContext) []table.Column {
 
 	return []table.Column{
 		{
-			Title: "Created At",
-			Width: layout.CreatedAt.Width,
-		},
-		{
-			Title: "Updated At",
-			Width: layout.UpdatedAt.Width,
+			Title: "Task ID",
+			Width: layout.TaskId.Width,
 		},
 		{
 			Title: "Title",
 			Width: layout.Title.Width,
+		},
+		{
+			Title: "Status",
+			Width: layout.ReviewStatus.Width,
 		},
 		{
 			Title: "Description",
@@ -144,7 +148,7 @@ func (m *Model) NumRows() int {
 	return len(m.Tasks)
 }
 
-func (m *Model) GetCurrRow() *context.Task {
+func (m *Model) GetCurrRow() *models.Task {
 	if len(m.Tasks) == 0 {
 		return nil
 	}
@@ -177,47 +181,29 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 			limit = &m.Ctx.Config.Defaults.TaskLimit
 		}
 
-		// fetch the task data from database
-		// 		res, err := data.FetchTaskData(m.GetFilters(), *limit, m.PageInfo)
-		// if err != nil {
-		// 	return constants.TaskFinishedMsg{
-		// 		SectionId:   m.Id,
-		// 		SectionType: m.Type,
-		// 		TaskId:      taskId,
-		// 		Err:         err,
-		// 	}
-		// }
+		var filter models.TodoFilter
+		var pagination models.CursorPagination
 
-		tasks := make([]context.Task, 0)
-		task := context.Task{
-			Id:           "1",
-			StartText:    "Starting",
-			FinishedText: "Ongoing",
-			Title:        "First Task",
-			Description:  "This is going to be a long title for the thing that I am going to talk about. Nothing can change that",
-			Status:       context.NotStarted,
-			Error:        nil,
-		}
-		task2 := context.Task{
-			Id:           "2",
-			StartText:    "Started",
-			FinishedText: "Finished",
-			Title:        "Second Task",
-			Description:  "How life has changed since the time I have first started doing something that means some other thing. Well, no",
-			Status:       context.NotStarted,
-			Error:        nil,
-		}
-		task3 := context.Task{
-			Id:           "2",
-			StartText:    "Will Start",
-			FinishedText: "Completed",
-			Title:        "Third Taskj",
-			Description:  "Wow, still this is working. I cannot believe it. The brain can spew nonsense if we keep prompting it to provide something",
-			Status:       context.NotStarted,
-			Error:        nil,
+		if m.BaseModel.Type != "" {
+			filter.Status = models.Status(m.BaseModel.Config.FilterValue)
 		}
 
-		tasks = append(tasks, task, task2, task3)
+		pagination.OrderBy = "ASC"
+		pagination.OrderDir = "next"
+
+		paginatedTodos, err := m.Ctx.Repo.GetTodosWithCursor(ctx.TODO(), filter, pagination)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		log.Print("paginatedTodos= ", paginatedTodos.HasNext)
+
+		tasks := make([]models.Task, 0)
+		for _, task := range paginatedTodos.Todos {
+			log.Print(task.Description)
+			tasks = append(tasks, task)
+		}
 
 		return constants.TaskFinishedMsg{
 			SectionId:   m.Id,
@@ -225,9 +211,9 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 			TaskId:      taskId,
 			Msg: SectionTaskDataFetchedMsg{
 				Tasks:      tasks,
-				TotalCount: 1, // res.TotalCount
-				// PageInfo:   nil, // res.PageInfo
-				TaskId: taskId,
+				TotalCount: 3,                                                                     // res.TotalCount
+				PageInfo:   config.PageInfo{HasNextPage: false, StartCursor: "1", EndCursor: "3"}, // res.PageInfo
+				TaskId:     taskId,
 			},
 		}
 	}
@@ -246,11 +232,24 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 func FetchAllSections(
 	ctx *context.ProgramContext,
 	taskSections []section.Section,
+	filterType config.FilterType,
 ) (sections []section.Section, fetchAllCmd tea.Cmd) {
 
-	fetchPRsCmds := make([]tea.Cmd, 0, len(ctx.Config.TaskSections))
-	sections = make([]section.Section, 0, len(ctx.Config.TaskSections))
-	for i, sectionConfig := range ctx.Config.TaskSections {
+	var sectionConfig []config.SectionConfig
+
+	// Create different Sections for this
+	switch filterType {
+	case config.Category:
+		sectionConfig = ctx.Config.TaskSections
+	case config.Priority:
+		sectionConfig = ctx.Config.TaskSections
+	case config.Status:
+		sectionConfig = ctx.Config.TaskSections
+	}
+
+	fetchPRsCmds := make([]tea.Cmd, 0, len(sectionConfig))
+	sections = make([]section.Section, 0, len(sectionConfig))
+	for i, sectionConfig := range sectionConfig {
 		sectionModel := NewModel(
 			i+1, // 0 is the search section
 			ctx,

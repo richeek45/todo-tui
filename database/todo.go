@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	context1 "github.com/richeek45/todo-tui/context"
+	"github.com/richeek45/todo-tui/models"
 	"github.com/richeek45/todo-tui/pagination"
 )
 
@@ -19,7 +19,7 @@ func NewTodoRepository(db *sql.DB) *TodoRepository {
 	return &TodoRepository{db: db}
 }
 
-func (r *TodoRepository) CreateTodo(ctx context.Context, task context1.Task) error {
+func (r *TodoRepository) CreateTodo(ctx context.Context, task *models.Task) error {
 	query := `
 		INSERT INTO todos (id, title, description, status, priority, due_date, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -45,9 +45,9 @@ func (r *TodoRepository) CreateTodo(ctx context.Context, task context1.Task) err
 
 func (r *TodoRepository) GetTodosWithCursor(
 	ctx context.Context,
-	filter context1.TodoFilter,
-	paginationVar context1.CursorPagination,
-) (*context1.PaginatedTodos, error) {
+	filter models.TodoFilter,
+	paginationVar models.CursorPagination,
+) (*models.PaginatedTodos, error) {
 	if paginationVar.Limit == 0 {
 		paginationVar.Limit = 10
 	}
@@ -101,10 +101,10 @@ func (r *TodoRepository) GetTodosWithCursor(
 	}
 	defer rows.Close()
 
-	var tasks []context1.Task
+	var tasks []models.Task
 
 	for rows.Next() {
-		var task context1.Task
+		var task models.Task
 		var dueDate, completedAt sql.NullTime
 
 		err := rows.Scan(&task.Id, &task.Title, &task.Description, &task.Status, &task.Priority,
@@ -147,7 +147,7 @@ func (r *TodoRepository) GetTodosWithCursor(
 		}
 	}
 
-	return &context1.PaginatedTodos{
+	return &models.PaginatedTodos{
 		Todos:      tasks,
 		NextCursor: nextCursor,
 		HasNext:    hasNext,
@@ -155,7 +155,7 @@ func (r *TodoRepository) GetTodosWithCursor(
 
 }
 
-func buildWhereClause(filter context1.TodoFilter) (string, []interface{}) {
+func buildWhereClause(filter models.TodoFilter) (string, []interface{}) {
 	var conditions []string
 	var args []interface{}
 

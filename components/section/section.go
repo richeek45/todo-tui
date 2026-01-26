@@ -12,6 +12,7 @@ import (
 	"github.com/richeek45/todo-tui/config"
 	"github.com/richeek45/todo-tui/constants"
 	"github.com/richeek45/todo-tui/context"
+	"github.com/richeek45/todo-tui/models"
 )
 
 type BaseModel struct {
@@ -107,7 +108,7 @@ type Component interface {
 type Table interface {
 	NumRows() int
 	ResetRows()
-	GetCurrRow() *context.Task
+	GetCurrRow() *models.Task
 	CurrRow() int
 	NextRow() int
 	PrevRow() int
