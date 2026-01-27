@@ -8,7 +8,7 @@ type Priority string
 const (
 	Completed  Status = "completed"
 	NotStarted Status = "pending"
-	InProgress Status = "in-progress"
+	InProgress Status = "in_progress"
 )
 
 const (

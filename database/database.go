@@ -88,32 +88,64 @@ func SeedSampleData(db *sql.DB) {
 			Priority:    models.PriorityLow,
 			DueDate:     ptrTime(time.Now().Add(7 * 24 * time.Hour)),
 		},
-		// Add more sample todos...
-
-		// task := models.Task{
-		// 	Id:          "1",
-		// 	Title:       "First Task",
-		// 	Priority:    models.PriorityHigh,
-		// 	Description: "This is going to be a long title for the thing that I am going to talk about. Nothing can change that",
-		// 	Status:      models.NotStarted,
-		// 	Error:       nil,
-		// }
-		// task2 := models.Task{
-		// 	Id:          "2",
-		// 	Title:       "Second Task",
-		// 	Priority:    models.PriorityMedium,
-		// 	Description: "How life has changed since the time I have first started doing something that means some other thing. Well, no",
-		// 	Status:      models.Completed,
-		// 	Error:       nil,
-		// }
-		// task3 := models.Task{
-		// 	Id:          "3",
-		// 	Title:       "Third Taskj",
-		// 	Priority:    models.PriorityMedium,
-		// 	Description: "Wow, still this is working. I cannot believe it. The brain can spew nonsense if we keep prompting it to provide something",
-		// 	Status:      models.InProgress,
-		// 	Error:       nil,
-		// }
+		{
+			Id:          "4",
+			Title:       "Prepare quarterly presentation",
+			Description: "Create slides for Q2 results presentation to stakeholders",
+			Status:      models.InProgress,
+			Priority:    models.PriorityHigh,
+			DueDate:     ptrTime(time.Now().Add(3 * 24 * time.Hour)),
+		},
+		{
+			Id:          "5",
+			Title:       "Fix authentication bug",
+			Description: "Resolve JWT token expiration issue in mobile app",
+			Status:      models.NotStarted,
+			Priority:    models.PriorityHigh,
+			DueDate:     ptrTime(time.Now().Add(2 * 24 * time.Hour)),
+		},
+		{
+			Id:          "6",
+			Title:       "Onboard new team member",
+			Description: "Set up workstation and provide orientation for new developer",
+			Status:      models.Completed,
+			Priority:    models.PriorityMedium,
+			DueDate:     ptrTime(time.Now().Add(-1 * 24 * time.Hour)),
+			CompletedAt: ptrTime(time.Now().Add(-6 * time.Hour)),
+		},
+		{
+			Id:          "7",
+			Title:       "Research new framework",
+			Description: "Evaluate React Native vs Flutter for upcoming mobile project",
+			Status:      models.InProgress,
+			Priority:    models.PriorityLow,
+			DueDate:     ptrTime(time.Now().Add(14 * 24 * time.Hour)),
+		},
+		{
+			Id:          "8",
+			Title:       "Update SSL certificates",
+			Description: "Renew and deploy SSL certificates for all production domains",
+			Status:      models.NotStarted,
+			Priority:    models.PriorityMedium,
+			DueDate:     ptrTime(time.Now().Add(5 * 24 * time.Hour)),
+		},
+		{
+			Id:          "9",
+			Title:       "Performance optimization",
+			Description: "Improve database query performance for user analytics dashboard",
+			Status:      models.Completed,
+			Priority:    models.PriorityMedium,
+			DueDate:     ptrTime(time.Now().Add(-3 * 24 * time.Hour)),
+			CompletedAt: ptrTime(time.Now().Add(-2 * 24 * time.Hour)),
+		},
+		{
+			Id:          "10",
+			Title:       "Plan team offsite",
+			Description: "Organize venue, agenda, and logistics for quarterly team offsite",
+			Status:      models.NotStarted,
+			Priority:    models.PriorityLow,
+			DueDate:     ptrTime(time.Now().Add(30 * 24 * time.Hour)),
+		},
 	}
 
 	for _, todo := range sampleTodos {
