@@ -184,8 +184,12 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 		var filter models.TodoFilter
 		var pagination models.CursorPagination
 
-		if m.BaseModel.Type != "" {
-			filter.Status = models.Status(m.BaseModel.Config.FilterValue)
+		if m.Config.FilterType == string(config.Priority) {
+			filter.Priority = models.Priority(m.Config.FilterValue)
+		}
+
+		if m.Config.FilterType == string(config.Status) {
+			filter.Status = models.Status(m.Config.FilterValue)
 		}
 
 		if m.SearchValue != "" {
@@ -245,7 +249,7 @@ func FetchAllSections(
 	case config.Category:
 		sectionConfig = ctx.Config.TaskSections
 	case config.Priority:
-		sectionConfig = ctx.Config.TaskSections
+		sectionConfig = ctx.Config.PrioritySections
 	case config.Status:
 		sectionConfig = ctx.Config.TaskSections
 	}

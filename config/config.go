@@ -58,8 +58,9 @@ type Defaults struct {
 }
 
 type Config struct {
-	Defaults     Defaults
-	TaskSections []SectionConfig
+	Defaults         Defaults
+	TaskSections     []SectionConfig
+	PrioritySections []SectionConfig
 }
 
 var DefaultConfig = &Config{
@@ -69,7 +70,7 @@ var DefaultConfig = &Config{
 			Width: 70,
 		},
 		TaskLimit: 10,
-		View:      Status,
+		View:      Priority,
 		Layout: LayoutConfig{
 			UpdatedAt: ColumnConfig{
 				Width: utils.IntPtr(lipgloss.Width("Updated at  ")),
@@ -109,6 +110,23 @@ var DefaultConfig = &Config{
 			Title:       "DONE",
 			FilterType:  string(Status),
 			FilterValue: string(models.Completed),
+		},
+	},
+	PrioritySections: []SectionConfig{
+		{
+			Title:       "HIGH",
+			FilterType:  string(Priority),
+			FilterValue: string(models.PriorityHigh),
+		},
+		{
+			Title:       "MEDIUM",
+			FilterType:  string(Priority),
+			FilterValue: string(models.PriorityMedium),
+		},
+		{
+			Title:       "LOW",
+			FilterType:  string(Priority),
+			FilterValue: string(models.PriorityLow),
 		},
 	},
 }

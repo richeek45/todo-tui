@@ -9,6 +9,7 @@ type KeyMap struct {
 	NextSection     key.Binding
 	TogglePreview   key.Binding
 	Search          key.Binding
+	Filter          key.Binding
 	AddTask         key.Binding
 	EditTask        key.Binding
 	DeleteTask      key.Binding
@@ -56,6 +57,10 @@ var Keys = &KeyMap{
 	Search: key.NewBinding(
 		key.WithKeys("/"),
 		key.WithHelp("/", "Search"),
+	),
+	Filter: key.NewBinding(
+		key.WithKeys("f", "F"),
+		key.WithHelp("f/F", "Switch Filter"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("ctrl+c", "esc", "q"),

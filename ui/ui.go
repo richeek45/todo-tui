@@ -296,6 +296,17 @@ func (m Model) handleBrowsingKeys(
 			cmd = currSection.SetIsSearching(true)
 			return m, cmd
 		}
+	case key.Matches(msg, m.keys.Filter):
+		if m.ctx.View == config.Status {
+			m.ctx.View = config.Priority
+		} else {
+			m.ctx.View = config.Status
+		}
+		newSections, fetchSectionsCmds := m.fetchAllViewSections()
+		m.setCurrentViewSections(newSections)
+		m.setCurrSectionId(1)
+
+		cmds = append(cmds, fetchSectionsCmds)
 
 	case key.Matches(msg, m.keys.AddTask):
 		if m.CurrentState == stateBrowsing {
@@ -462,8 +473,14 @@ func (m *Model) getCurrentViewSections() []section.Section {
 
 func (m *Model) updateSection(id int, sType string, msg tea.Msg) (cmd tea.Cmd) {
 	var updatedSection section.Section
-	switch sType {
-	case tasksection.SectionType:
+	switch m.ctx.View {
+	case config.Status:
+		updatedSection, cmd = m.statusTasks[id].Update(msg)
+		m.statusTasks[id] = updatedSection
+	case config.Priority:
+		updatedSection, cmd = m.priorityTasks[id].Update(msg)
+		m.priorityTasks[id] = updatedSection
+	default:
 		updatedSection, cmd = m.statusTasks[id].Update(msg)
 		m.statusTasks[id] = updatedSection
 	}
