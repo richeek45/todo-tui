@@ -8,10 +8,13 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/richeek45/todo-tui/components/footer"
+	"github.com/richeek45/todo-tui/components/form"
 	"github.com/richeek45/todo-tui/components/section"
 	"github.com/richeek45/todo-tui/components/sidebar"
 	"github.com/richeek45/todo-tui/components/tabs"
@@ -33,8 +36,19 @@ type Item struct {
 	title, desc string
 }
 
+type state int
+
+const (
+	stateBrowsing state = iota
+	stateFiltering
+	stateAdding
+	stateEditing
+	stateDeleting
+)
+
 type Model struct {
 	sidebar       sidebar.Model
+	addTaskForm   form.Model
 	tabs          tabs.Model
 	footer        footer.Model
 	taskSpinner   spinner.Model
@@ -44,6 +58,8 @@ type Model struct {
 	statusTasks   []section.Section
 	ctx           *context.ProgramContext
 	Tasks         map[string]models.Task
+	CurrentState  state
+	pagination    models.CursorPagination
 }
 
 type initMsg struct {
@@ -70,9 +86,12 @@ func NewModel(items []Item) Model {
 	taskRepo := database.NewTodoRepository(db)
 
 	m := Model{
-		keys:        keys.Keys,
-		sidebar:     sidebar.NewModel(),
-		taskSpinner: spinner.Model{Spinner: spinner.Ellipsis},
+		keys:         keys.Keys,
+		sidebar:      sidebar.NewModel(),
+		taskSpinner:  spinner.Model{Spinner: spinner.Ellipsis},
+		CurrentState: stateBrowsing,
+		addTaskForm:  form.NewModel(),
+		pagination:   models.CursorPagination{Limit: 10, OrderBy: "created_at", OrderDir: "DESC"},
 	}
 
 	m.ctx = &context.ProgramContext{
@@ -93,7 +112,7 @@ func (m Model) InitScreen() tea.Msg {
 var docStyle = lipgloss.NewStyle().Margin(1, 2)
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.InitScreen, tea.EnterAltScreen)
+	return tea.Batch(m.InitScreen, tea.EnterAltScreen, textarea.Blink, textinput.Blink)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -113,53 +132,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
-		switch {
-		case key.Matches(msg, m.keys.Quit):
-			return m, tea.Quit
-		case key.Matches(msg, m.keys.PreviousSection):
-			prevSection := m.getSectionAt(m.getPreviousSectionId())
-			if prevSection != nil {
-				m.setCurrSectionId(prevSection.GetId())
-				// cmd = m.onViewedRowChanged()
-			}
-		case key.Matches(msg, m.keys.NextSection):
-			nextSection := m.getSectionAt(m.getNextSectionId())
-			if nextSection != nil {
-				m.setCurrSectionId(nextSection.GetId())
-				// cmd = m.onViewedRowChanged()
-			}
-		case key.Matches(msg, m.keys.Down):
-			prevRow := currSection.CurrRow()
-			nextRow := currSection.NextRow()
-
-			if prevRow != nextRow && nextRow == currSection.NumRows()-1 {
-				cmds = append(cmds, currSection.FetchNextPageSectionRows()...)
-			}
-			// cmd = m.onViewedRowChanged()
-		case key.Matches(msg, m.keys.Up):
-			currSection.PrevRow()
-
-		case key.Matches(msg, m.keys.Search):
-			if currSection != nil {
-				cmd = currSection.SetIsSearching(true)
-				return m, cmd
-			}
-
-		// case key.Matches(msg, m.keys.Enter):
-
-		case key.Matches(msg, m.keys.TogglePreview):
-			m.sidebar.IsOpen = !m.sidebar.IsOpen
-			m.SyncMainContentWidth()
-		case key.Matches(msg, m.keys.Help):
-			_, v := docStyle.GetFrameSize()
-			if !m.footer.ShowAll {
-				m.ctx.MainContentHeight = m.ctx.ScreenHeight - v - context.ExpandedHelpHeight
-			} else {
-				m.ctx.MainContentHeight = m.ctx.ScreenHeight - v - context.FooterHeight
-			}
-
-			m.footer.ShowAll = !m.footer.ShowAll
+		switch m.CurrentState {
+		case stateBrowsing:
+			m, cmd = m.handleBrowsingKeys(msg, currSection, cmd, cmds)
+		case stateAdding:
+			m, cmd = m.handleAddingTaskKeys(msg, cmd)
 		}
+
 	case tea.WindowSizeMsg:
 		m.onWindowSizeChanged(msg)
 	case initMsg:
@@ -198,23 +177,40 @@ func (m Model) View() string {
 		return lipgloss.Place(m.ctx.ScreenWidth, m.ctx.ScreenHeight, lipgloss.Center, lipgloss.Center, "Reading config...")
 	}
 
-	s := strings.Builder{}
+	content := strings.Builder{}
 
-	s.WriteString(m.tabs.View())
+	switch m.CurrentState {
+	case stateBrowsing:
+		content.WriteString(m.renderBrowsingView())
+	// case stateFiltering:
+	// 	content.WriteString(m.renderFilterView())
+	case stateAdding:
+		content.WriteString(m.addTaskForm.View())
+		// case stateEditing:
+		// 	content.WriteString(m.renderEditView())
+	}
+
+	content.WriteString("\n\n")
+	content.WriteString(m.footer.View())
+
+	return lipgloss.NewStyle().Padding(1, 2).Render(content.String())
+}
+
+func (m Model) renderBrowsingView() string {
+	content := strings.Builder{}
+
+	content.WriteString(m.tabs.View())
 
 	currSection := m.GetCurrSection()
 
 	if currSection != nil {
-		s.WriteString(lipgloss.JoinHorizontal(
+		content.WriteString(lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			m.GetCurrSection().View(),
 			m.sidebar.View(),
 		))
 	}
-	s.WriteString("\n")
-	s.WriteString(m.footer.View())
-
-	return s.String()
+	return content.String()
 }
 
 func Run() {
@@ -263,6 +259,84 @@ func Run() {
 
 }
 
+func (m Model) handleBrowsingKeys(
+	msg tea.KeyMsg,
+	currSection section.Section,
+	cmd tea.Cmd,
+	cmds []tea.Cmd,
+) (Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, m.keys.Quit):
+		return m, tea.Quit
+	case key.Matches(msg, m.keys.PreviousSection):
+		prevSection := m.getSectionAt(m.getPreviousSectionId())
+		if prevSection != nil {
+			m.setCurrSectionId(prevSection.GetId())
+			// cmd = m.onViewedRowChanged()
+		}
+	case key.Matches(msg, m.keys.NextSection):
+		nextSection := m.getSectionAt(m.getNextSectionId())
+		if nextSection != nil {
+			m.setCurrSectionId(nextSection.GetId())
+			// cmd = m.onViewedRowChanged()
+		}
+	case key.Matches(msg, m.keys.Down):
+		prevRow := currSection.CurrRow()
+		nextRow := currSection.NextRow()
+
+		if prevRow != nextRow && nextRow == currSection.NumRows()-1 {
+			cmds = append(cmds, currSection.FetchNextPageSectionRows()...)
+		}
+		// cmd = m.onViewedRowChanged()
+	case key.Matches(msg, m.keys.Up):
+		currSection.PrevRow()
+
+	case key.Matches(msg, m.keys.Search):
+		if currSection != nil {
+			cmd = currSection.SetIsSearching(true)
+			return m, cmd
+		}
+
+	case key.Matches(msg, m.keys.AddTask):
+		if m.CurrentState == stateBrowsing {
+			m.CurrentState = stateAdding
+		}
+	// case key.Matches(msg, m.keys.Enter):
+
+	case key.Matches(msg, m.keys.TogglePreview):
+		m.sidebar.IsOpen = !m.sidebar.IsOpen
+		m.SyncMainContentWidth()
+	case key.Matches(msg, m.keys.Help):
+		_, v := docStyle.GetFrameSize()
+		if !m.footer.ShowAll {
+			m.ctx.MainContentHeight = m.ctx.ScreenHeight - v - context.ExpandedHelpHeight
+		} else {
+			m.ctx.MainContentHeight = m.ctx.ScreenHeight - v - context.FooterHeight
+		}
+
+		m.footer.ShowAll = !m.footer.ShowAll
+	}
+
+	return m, cmd
+}
+
+func (m Model) handleAddingTaskKeys(
+	msg tea.KeyMsg,
+	cmd tea.Cmd,
+) (Model, tea.Cmd) {
+
+	switch msg.String() {
+	case "esc":
+		m.CurrentState = stateBrowsing
+		m.addTaskForm.ResetAddForm()
+		return m, nil
+
+	}
+	m.addTaskForm, cmd = m.addTaskForm.Update(msg, cmd)
+
+	return m, cmd
+}
+
 func (m *Model) SyncProgramContext(ctx *context.ProgramContext) {
 
 	for _, section := range m.getCurrentViewSections() {
@@ -283,6 +357,8 @@ func (m *Model) onWindowSizeChanged(msg tea.WindowSizeMsg) {
 	} else {
 		m.ctx.MainContentHeight = msg.Height - v - context.FooterHeight
 	}
+	m.addTaskForm.DescInput.SetWidth(msg.Width / 2)
+
 	m.ctx.MainContentWidth = msg.Width
 	m.footer.SetWidth(msg.Width)
 }
@@ -291,6 +367,7 @@ func (m *Model) SyncSideBar() {
 	// width := m.sidebar.GetSidebarContentWidth()
 	currRowData := m.getCurrRowData()
 	if currRowData == nil {
+		m.sidebar.SetContent("")
 		return
 	}
 	m.sidebar.SetContent(string(currRowData.Description))
@@ -302,7 +379,6 @@ func (m *Model) SyncMainContentWidth() {
 		sideBarOffset = m.ctx.Config.Defaults.Preview.Width
 	}
 	m.ctx.MainContentWidth = m.ctx.ScreenWidth - sideBarOffset
-	log.Println("m.ctx.ScreenWidth=", m.ctx.ScreenWidth)
 }
 
 func (m *Model) fetchAllViewSections() ([]section.Section, tea.Cmd) {

@@ -188,6 +188,10 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 			filter.Status = models.Status(m.BaseModel.Config.FilterValue)
 		}
 
+		if m.SearchValue != "" {
+			filter.Search = m.SearchValue
+		}
+
 		pagination.OrderBy = "ASC"
 		pagination.OrderDir = "next"
 
@@ -196,8 +200,6 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 		if err != nil {
 			log.Fatal(err)
 		}
-
-		log.Print("paginatedTodos= ", paginatedTodos.HasNext)
 
 		tasks := make([]models.Task, 0)
 		for _, task := range paginatedTodos.Todos {
@@ -211,9 +213,10 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 			TaskId:      taskId,
 			Msg: SectionTaskDataFetchedMsg{
 				Tasks:      tasks,
-				TotalCount: 3,                                                                     // res.TotalCount
-				PageInfo:   config.PageInfo{HasNextPage: false, StartCursor: "1", EndCursor: "3"}, // res.PageInfo
-				TaskId:     taskId,
+				TotalCount: len(paginatedTodos.Todos),
+				// 		pagination:   models.CursorPagination{Limit: 10, OrderBy: "created_at", OrderDir: "DESC"},
+				PageInfo: config.PageInfo{HasNextPage: paginatedTodos.HasNext, StartCursor: "1", EndCursor: "3"}, // res.PageInfo
+				TaskId:   taskId,
 			},
 		}
 	}

@@ -105,7 +105,7 @@ func (m *Model) PrevItem() int {
 		m.bottomBoundId -= 1
 		m.viewport.ScrollUp(m.ListItemHeight)
 	}
-	newCurrId := min(m.currId-1, 0)
+	newCurrId := max(m.currId-1, 0)
 	m.currId = newCurrId
 	return m.currId
 }

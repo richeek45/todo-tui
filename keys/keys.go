@@ -9,11 +9,15 @@ type KeyMap struct {
 	NextSection     key.Binding
 	TogglePreview   key.Binding
 	Search          key.Binding
+	AddTask         key.Binding
+	EditTask        key.Binding
+	DeleteTask      key.Binding
 	Quit            key.Binding
 	Enter           key.Binding
 	PageUp          key.Binding
 	PageDown        key.Binding
 	Help            key.Binding
+	Esc             key.Binding
 }
 
 var Keys = &KeyMap{
@@ -32,6 +36,18 @@ var Keys = &KeyMap{
 	NextSection: key.NewBinding(
 		key.WithKeys("right", "l"),
 		key.WithHelp("→/l", "next section"),
+	),
+	AddTask: key.NewBinding(
+		key.WithKeys("a", "+"),
+		key.WithHelp("a/+", "add task"),
+	),
+	EditTask: key.NewBinding(
+		key.WithKeys("e"),
+		key.WithHelp("e", "edit"),
+	),
+	DeleteTask: key.NewBinding(
+		key.WithKeys("d", "backspace"),
+		key.WithHelp("d/del", "delete"),
 	),
 	TogglePreview: key.NewBinding(
 		key.WithKeys("p"),

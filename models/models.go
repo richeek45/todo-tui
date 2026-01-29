@@ -51,7 +51,10 @@ type CursorPagination struct {
 }
 
 type PaginatedTodos struct {
-	Todos      []Task `json:"tasks"`
+	Todos      []Task `json:"todos"`
 	NextCursor string `json:"next_cursor,omitempty"`
+	PrevCursor string `json:"prev_cursor,omitempty"`
 	HasNext    bool   `json:"has_next"`
+	HasPrev    bool   `json:"has_prev"`
+	TotalCount int    `json:"total_count,omitempty"`
 }
