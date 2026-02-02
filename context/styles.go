@@ -47,6 +47,9 @@ type Styles struct {
 var (
 	FooterHeight       = 1
 	ExpandedHelpHeight = 10
+	MainContentPadding = 1
+	TabsHeight         = 3
+	TableHeaderHeight  = 2
 )
 
 const (
@@ -113,7 +116,7 @@ func InitStyles(theme theme.Theme) Styles {
 			Top:         "",
 			Bottom:      "",
 			Left:        "|",
-			Right:       "",
+			Right:       "|",
 			TopLeft:     "",
 			TopRight:    "",
 			BottomLeft:  "",

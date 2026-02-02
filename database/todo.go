@@ -43,6 +43,57 @@ func (r *TodoRepository) CreateTodo(ctx context.Context, task *models.Task) erro
 	return err
 }
 
+func (r *TodoRepository) UpdateTodo(ctx context.Context, task *models.Task) error {
+	query := `
+        UPDATE todos 
+        SET title = ?, 
+            description = ?, 
+            status = ?, 
+            priority = ?, 
+            due_date = ?, 
+            updated_at = ?
+        WHERE id = ?
+    `
+
+	task.UpdatedAt = time.Now()
+
+	_, err := r.db.ExecContext(ctx, query,
+		task.Title,
+		task.Description,
+		task.Status,
+		task.Priority,
+		task.DueDate,
+		task.UpdatedAt,
+		task.Id,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to update todo: %w", err)
+	}
+
+	return nil
+}
+
+func (r *TodoRepository) DeleteTodo(ctx context.Context, taskID string) error {
+	query := `DELETE FROM todos WHERE id = ?`
+
+	result, err := r.db.ExecContext(ctx, query, taskID)
+	if err != nil {
+		return fmt.Errorf("failed to delete todo: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("todo with id %s not found", taskID)
+	}
+
+	return nil
+}
+
 func (r *TodoRepository) GetTodosWithCursor(
 	ctx context.Context,
 	filter models.TodoFilter,

@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/richeek45/todo-tui/common"
 	"github.com/richeek45/todo-tui/context"
 	"github.com/richeek45/todo-tui/keys"
 )
@@ -51,11 +52,15 @@ func (m Model) View() string {
 		return ""
 	}
 
-	height := m.ctx.MainContentHeight
+	height := m.ctx.MainContentHeight - context.FooterHeight - context.TabsHeight - common.SearchHeight
+	width := m.ctx.ScreenWidth - m.ctx.MainContentWidth - 10
+
 	style := m.ctx.Styles.Sidebar.Root.
 		Height(height).
-		Width(m.ctx.Config.Defaults.Preview.Width).
-		MaxWidth(m.ctx.Config.Defaults.Preview.Width)
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("37")).
+		Margin(1, 2).
+		Width(width)
 
 	if m.data == "" {
 		return style.Align(lipgloss.Center).
@@ -66,7 +71,8 @@ func (m Model) View() string {
 		lipgloss.Top,
 		m.viewport.View(),
 		m.ctx.Styles.Sidebar.PagerStyle.
-			Render(fmt.Sprintf("%d%%", int(m.viewport.ScrollPercent()*100)))))
+			Render(fmt.Sprintf("%d%%", int(m.viewport.ScrollPercent()*100))),
+	))
 
 }
 
@@ -84,7 +90,7 @@ func (m Model) GetData() string {
 
 func (m *Model) SetContent(data string) {
 	m.data = data
-	m.viewport.SetContent("\n\n\n\n" + data)
+	m.viewport.SetContent("\n" + data)
 }
 
 func (m *Model) GetSidebarContentWidth() int {
@@ -101,6 +107,7 @@ func (m *Model) UpdateProgramContext(ctx *context.ProgramContext) {
 	}
 
 	m.ctx = ctx
-	m.viewport.Height = m.ctx.MainContentHeight - m.ctx.Styles.Sidebar.PagerHeight
-	m.viewport.Width = m.GetSidebarContentWidth()
+	height := m.ctx.MainContentHeight - context.FooterHeight - context.TabsHeight - common.SearchHeight
+	m.viewport.Height = height
+	m.viewport.Width = m.GetSidebarContentWidth() - 10
 }

@@ -117,6 +117,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m, cmd = m.handleBrowsingKeys(msg, currSection, cmd, cmds)
 		case context.StateAdding:
 			m, cmd = m.handleAddingTaskKeys(msg, cmd)
+		case context.StateEditing:
+			m, cmd = m.handleEditingKeys(msg, cmd)
+
 		}
 
 	case tea.WindowSizeMsg:
@@ -167,18 +170,16 @@ func (m Model) View() string {
 	switch m.ctx.CurrentState {
 	case context.StateBrowsing:
 		content.WriteString(m.renderBrowsingView())
-	// case stateFiltering:
-	// 	content.WriteString(m.renderFilterView())
 	case context.StateAdding:
 		content.WriteString(m.addTaskForm.View())
-		// case stateEditing:
-		// 	content.WriteString(m.renderEditView())
+	case context.StateEditing:
+		content.WriteString(m.addTaskForm.View())
 	}
 
 	content.WriteString("\n\n")
 	content.WriteString(m.footer.View())
 
-	return lipgloss.NewStyle().Padding(1, 2).Render(content.String())
+	return lipgloss.NewStyle().Render(content.String())
 }
 
 func (m Model) renderBrowsingView() string {
@@ -277,20 +278,26 @@ func (m Model) handleBrowsingKeys(
 		cmds = append(cmds, fetchCmd)
 
 	case key.Matches(msg, m.keys.AddTask):
-		if m.ctx.CurrentState == context.StateBrowsing {
-			m.ctx.CurrentState = context.StateAdding
-		}
-
+		m.ctx.CurrentState = context.StateAdding
+	case key.Matches(msg, m.keys.EditTask):
+		m.ctx.CurrentState = context.StateEditing
+		currRowData := m.getCurrRowData()
+		m.addTaskForm.SetTaskValues(currRowData)
+	case key.Matches(msg, m.keys.DeleteTask):
+		currRowData := m.getCurrRowData()
+		m.addTaskForm.DeleteTask(currRowData.Id)
+		m.ctx.CurrentState = context.StateBrowsing
 	case key.Matches(msg, m.keys.TogglePreview):
 		m.sidebar.IsOpen = !m.sidebar.IsOpen
 		m.SyncMainContentWidth()
 	case key.Matches(msg, m.keys.Help):
-		_, v := docStyle.GetFrameSize()
 		m.footer.ShowAll = !m.footer.ShowAll
 		if m.footer.ShowAll {
-			m.ctx.MainContentHeight = m.ctx.ScreenHeight - v - context.ExpandedHelpHeight
+			m.ctx.MainContentHeight = m.ctx.MainContentHeight +
+				context.FooterHeight - context.ExpandedHelpHeight
 		} else {
-			m.ctx.MainContentHeight = m.ctx.ScreenHeight - v - context.FooterHeight
+			m.ctx.MainContentHeight = m.ctx.MainContentHeight +
+				context.ExpandedHelpHeight - context.FooterHeight
 		}
 
 	}
@@ -310,7 +317,29 @@ func (m Model) handleAddingTaskKeys(
 		return m, nil
 
 	}
-	m.addTaskForm, cmd = m.addTaskForm.Update(msg, cmd)
+	m.addTaskForm, _ = m.addTaskForm.Update(msg, cmd)
+
+	return m, cmd
+}
+
+func (m Model) handleEditingKeys(
+	msg tea.KeyMsg,
+	cmd tea.Cmd,
+) (Model, tea.Cmd) {
+
+	m.addTaskForm, _ = m.addTaskForm.Update(msg, cmd)
+
+	switch msg.String() {
+	case "esc":
+		m.ctx.CurrentState = context.StateBrowsing
+		m.addTaskForm.ResetAddForm()
+		return m, cmd
+	case "ctrl+s":
+		newSections, fetchSectionsCmds := m.fetchAllViewSections()
+		m.setCurrentViewSections(newSections)
+		m.setCurrSectionId(1)
+		return m, tea.Batch(cmd, fetchSectionsCmds)
+	}
 
 	return m, cmd
 }
@@ -338,7 +367,6 @@ func (m *Model) onWindowSizeChanged(msg tea.WindowSizeMsg) {
 	}
 	m.addTaskForm.DescInput.SetWidth(msg.Width / 2)
 
-	m.ctx.MainContentWidth = msg.Width
 	m.footer.SetWidth(msg.Width)
 }
 
@@ -385,40 +413,14 @@ func (m *Model) setCurrentViewSections(newSections []section.Section) {
 		return
 	}
 
-	missingSearchSection := true
 	s := make([]section.Section, 0)
 
 	if m.ctx.View == config.Status {
-		if missingSearchSection {
-			search := tasksection.NewModel(
-				0,
-				m.ctx,
-				config.SectionConfig{
-					Title:       "",
-					FilterType:  "archived",
-					FilterValue: "false",
-				},
-			)
-			s = append(s, &search)
-		}
-
 		m.statusTasks = append(s, newSections...)
 		newSections = m.statusTasks
 	}
 
 	if m.ctx.View == config.Priority {
-		if missingSearchSection {
-			search := tasksection.NewModel(
-				0,
-				m.ctx,
-				config.SectionConfig{
-					Title:       "",
-					FilterType:  "archived",
-					FilterValue: "false"},
-			)
-			s = append(s, &search)
-		}
-
 		m.priorityTasks = append(s, newSections...)
 		newSections = m.priorityTasks
 	}

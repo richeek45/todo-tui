@@ -71,7 +71,6 @@ func (m *Model) Update(msg tea.Msg) (section.Section, tea.Cmd) {
 				return m, blinkCmd
 			case tea.KeyEnter:
 				m.SearchValue = m.SearchBar.Value()
-				log.Print(m.SearchValue)
 				m.SetIsSearching(false)
 				m.ResetRows()
 				return m, tea.Batch(m.FetchNextPageSectionRows("next")...)
@@ -276,12 +275,12 @@ func FetchAllSections(
 	sections = make([]section.Section, 0, len(sectionConfig))
 	for i, sectionConfig := range sectionConfig {
 		sectionModel := NewModel(
-			i+1, // 0 is the search section
+			i,
 			ctx,
 			sectionConfig,
 		)
-		if len(taskSections) > 0 && len(taskSections) >= i+1 && taskSections[i+1] != nil {
-			oldSection := taskSections[i+1].(*Model)
+		if len(taskSections) > 0 && len(taskSections) >= i && taskSections[i] != nil {
+			oldSection := taskSections[i].(*Model)
 			sectionModel.Tasks = oldSection.Tasks
 			sectionModel.LastFetchTaskId = oldSection.LastFetchTaskId
 		}
@@ -314,6 +313,8 @@ func LoadTodosCmd(
 	direction string,
 ) tea.Cmd {
 	var filter models.TodoFilter
+
+	filter.Priority = models.Priority(models.PriorityHigh)
 
 	return func() tea.Msg {
 		paginatedTodos, err := repo.GetTodosWithCursor(ctx.Background(), filter, pagination, direction)

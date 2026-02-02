@@ -56,7 +56,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 func (m Model) View() string {
 	return lipgloss.NewStyle().
-		Width(m.ctx.MainContentWidth - 4).
+		Width(m.ctx.MainContentWidth - 10).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(m.ctx.Theme.PrimaryBorder).
 		Render(m.textInput.View())

@@ -10,10 +10,10 @@ type State int
 
 const (
 	StateBrowsing State = iota
-	StateFiltering
 	StateAdding
 	StateEditing
 	StateDeleting
+	StateFiltering
 )
 
 type ProgramContext struct {
