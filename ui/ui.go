@@ -365,6 +365,7 @@ func (m *Model) onWindowSizeChanged(msg tea.WindowSizeMsg) {
 	} else {
 		m.ctx.MainContentHeight = msg.Height - v - context.FooterHeight
 	}
+	m.SyncMainContentWidth()
 	m.addTaskForm.DescInput.SetWidth(msg.Width / 2)
 
 	m.footer.SetWidth(msg.Width)
