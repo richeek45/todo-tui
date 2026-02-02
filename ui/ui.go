@@ -241,15 +241,24 @@ func (m Model) handleBrowsingKeys(
 			// cmd = m.onViewedRowChanged()
 		}
 	case key.Matches(msg, m.keys.Down):
-		prevRow := currSection.CurrRow()
-		nextRow := currSection.NextRow()
-
-		if prevRow != nextRow && nextRow == currSection.NumRows()-1 {
-			cmds = append(cmds, currSection.FetchNextPageSectionRows("next")...)
+		currRow := currSection.CurrRow()
+		if currRow == currSection.NumRows()-1 && currSection.GetPaginatedTodos().HasNext {
+			currSection.FirstItem()
+			fetchCmd := currSection.FetchNextPage()
+			return m, fetchCmd
+		} else {
+			currSection.NextRow()
 		}
 		// cmd = m.onViewedRowChanged()
 	case key.Matches(msg, m.keys.Up):
-		currSection.PrevRow()
+		currRow := currSection.CurrRow()
+		if currRow == 0 && currSection.GetPaginatedTodos().HasPrev {
+			currSection.LastItem()
+			fetchCmd := currSection.FetchPrevPage()
+			return m, fetchCmd
+		} else {
+			currSection.PrevRow()
+		}
 	case key.Matches(msg, m.keys.Search):
 		if currSection != nil {
 			cmd = currSection.SetIsSearching(true)
@@ -261,19 +270,22 @@ func (m Model) handleBrowsingKeys(
 		} else {
 			m.ctx.View = config.Status
 		}
-
 		newSections, cmd := m.fetchAllViewSections()
 		m.setCurrentViewSections(newSections)
 		m.setCurrSectionId(1)
 		return m, cmd
 	case key.Matches(msg, m.keys.NextPage):
 		section := m.GetCurrSection()
-		fetchCmd := section.FetchNextPage()
-		return m, fetchCmd
+		if section.GetPaginatedTodos().HasNext {
+			fetchCmd := section.FetchNextPage()
+			return m, fetchCmd
+		}
 	case key.Matches(msg, m.keys.PrevPage):
 		section := m.GetCurrSection()
-		fetchCmd := section.FetchPrevPage()
-		return m, fetchCmd
+		if section.GetPaginatedTodos().HasPrev {
+			fetchCmd := section.FetchPrevPage()
+			return m, fetchCmd
+		}
 	case key.Matches(msg, m.keys.AddTask):
 		m.ctx.CurrentState = context.StateAdding
 	case key.Matches(msg, m.keys.EditTask):

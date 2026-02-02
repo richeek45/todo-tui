@@ -122,6 +122,7 @@ type Table interface {
 	FetchNextPage() tea.Cmd
 	FetchPrevPage() tea.Cmd
 	FetchNextPageSectionRows(direction string) []tea.Cmd
+	GetPaginatedTodos() models.PaginatedTodos
 }
 
 type Search interface {
@@ -184,6 +185,10 @@ func (m *BaseModel) GetId() int {
 
 func (m *BaseModel) GetType() string {
 	return m.Type
+}
+
+func (m *BaseModel) GetPaginatedTodos() models.PaginatedTodos {
+	return *m.PaginatedTodos
 }
 
 func (m *BaseModel) ResetRows() {
