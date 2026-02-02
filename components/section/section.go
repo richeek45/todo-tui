@@ -30,6 +30,7 @@ type BaseModel struct {
 	Columns         []table.Column
 	TotalCount      int
 	LastFetchTaskId string
+	CurrentPage     int
 	Pagination      models.CursorPagination
 	PaginatedTodos  *models.PaginatedTodos
 }
@@ -61,6 +62,7 @@ func NewModel(
 		Columns:     options.Columns,
 		IsSearching: false,
 		TotalCount:  0,
+		CurrentPage: 0,
 		Pagination:  models.CursorPagination{Limit: 2, OrderBy: "created_at", OrderDir: "DESC"},
 	}
 
@@ -85,7 +87,7 @@ func NewModel(
 func (m *BaseModel) GetDimensions() constants.Dimensions {
 	return constants.Dimensions{
 		Width:  max(0, m.Ctx.MainContentWidth-m.Ctx.Styles.Section.ContainerStyle.GetHorizontalPadding()),
-		Height: max(0, m.Ctx.MainContentHeight-common.SearchHeight),
+		Height: max(0, m.Ctx.MainContentHeight-common.SearchHeight-common.PaginationHeight),
 	}
 }
 
@@ -147,7 +149,36 @@ func (m *BaseModel) GetMainContent() string {
 		)
 	}
 
-	return m.Table.View()
+	var paginationString string
+	if m.PaginatedTodos != nil {
+		pageInfo := ""
+		if m.PaginatedTodos.TotalCount > 0 {
+			totalPages := (m.PaginatedTodos.TotalCount + m.Pagination.Limit - 1) / m.Pagination.Limit
+
+			pageInfo = fmt.Sprintf(" | Total: %d", m.PaginatedTodos.TotalCount)
+			if totalPages > 1 {
+				pageInfo = fmt.Sprintf(" | Page %d/%d%s", m.CurrentPage, totalPages, pageInfo)
+			}
+		}
+
+		navInfo := ""
+		if m.PaginatedTodos.HasPrev {
+			navInfo += "← Prev "
+		}
+		if m.PaginatedTodos.HasNext {
+			if navInfo != "" {
+				navInfo += "| "
+			}
+			navInfo += "Next →"
+		}
+
+		if navInfo != "" {
+			paginationString = m.Ctx.Styles.PageInfoStyle.Render(navInfo+pageInfo) + "\n"
+
+		}
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Right, m.Table.View(), paginationString)
 }
 
 func (m BaseModel) View() string {

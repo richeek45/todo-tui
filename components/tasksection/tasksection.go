@@ -11,7 +11,6 @@ import (
 	"github.com/richeek45/todo-tui/config"
 	"github.com/richeek45/todo-tui/constants"
 	"github.com/richeek45/todo-tui/context"
-	"github.com/richeek45/todo-tui/database"
 	"github.com/richeek45/todo-tui/models"
 )
 
@@ -23,6 +22,7 @@ type Model struct {
 type SectionTaskDataFetchedMsg struct {
 	Tasks          []models.Task
 	TotalCount     int
+	direction      string
 	PaginatedTodos *models.PaginatedTodos
 }
 
@@ -74,23 +74,17 @@ func (m *Model) Update(msg tea.Msg) (section.Section, tea.Cmd) {
 			}
 		}
 	case SectionTaskDataFetchedMsg:
-		// if msg.err != nil {
-		// 	m.errorMsg = "Failed to load todos: " + msg.err.Error()
-		// 	return m, nil
-		// }
-
-		// m.successMsg = ""
-
-		// if m.PageInfo != nil {
-		// 	m.Tasks = append(m.Tasks, msg.Tasks...)
-		// } else {
-		// 	m.Tasks = msg.Tasks
-		// }
 		m.PaginatedTodos = msg.PaginatedTodos
 		if msg.PaginatedTodos != nil {
 			m.Tasks = msg.PaginatedTodos.Todos
 		} else {
 			m.Tasks = []models.Task{}
+		}
+
+		if msg.direction == "next" {
+			m.CurrentPage += 1
+		} else {
+			m.CurrentPage = max(m.CurrentPage-1, 0)
 		}
 
 		m.TotalCount = msg.TotalCount
@@ -128,8 +122,8 @@ func GetSectionColumns(ctx *context.ProgramContext) []table.Column {
 			Width: layout.ReviewStatus.Width,
 		},
 		{
-			Title: "Description",
-			Width: layout.Description.Width,
+			Title: "Priority",
+			Width: layout.Priority.Width,
 		},
 	}
 }
@@ -223,6 +217,7 @@ func (m *Model) FetchNextPageSectionRows(direction string) []tea.Cmd {
 				Tasks:          tasks,
 				TotalCount:     paginatedTodos.TotalCount,
 				PaginatedTodos: paginatedTodos,
+				direction:      direction,
 			},
 		}
 	}
@@ -290,36 +285,4 @@ func (m *Model) FetchNextPage() tea.Cmd {
 
 func (m *Model) FetchPrevPage() tea.Cmd {
 	return tea.Batch(m.FetchNextPageSectionRows("prev")...)
-}
-
-func LoadTodosCmd(
-	sectionId int,
-	repo *database.TodoRepository,
-	pagination models.CursorPagination,
-	direction string,
-) tea.Cmd {
-	var filter models.TodoFilter
-
-	filter.Priority = models.Priority(models.PriorityHigh)
-
-	return func() tea.Msg {
-		paginatedTodos, err := repo.GetTodosWithCursor(ctx.Background(), filter, pagination, direction)
-
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		tasks := make([]models.Task, 0)
-		for _, task := range paginatedTodos.Todos {
-			tasks = append(tasks, task)
-		}
-		return constants.TaskFinishedMsg{
-			SectionId: sectionId,
-			Msg: SectionTaskDataFetchedMsg{
-				Tasks:          tasks,
-				TotalCount:     len(paginatedTodos.Todos),
-				PaginatedTodos: paginatedTodos,
-			},
-		}
-	}
 }

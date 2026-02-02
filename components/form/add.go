@@ -64,8 +64,8 @@ func NewModel() Model {
 	addStatusInput := textinput.New()
 	addStatusInput.Placeholder = "pending/in_progress/completed"
 	addStatusInput.CharLimit = 12
-	addStatusInput.SetValue(string(models.PriorityMedium))
-	addTitleInput.Width = 50
+	addStatusInput.SetValue(string(models.NotStarted))
+	addStatusInput.Width = 30
 
 	return Model{
 		TitleInput:    addTitleInput,

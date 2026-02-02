@@ -14,6 +14,7 @@ var (
 	HeaderHeight      = 1
 	SingleRuneWidth   = 4
 	SearchHeight      = 3
+	PaginationHeight  = 5
 )
 
 func BuildStyles(theme theme.Theme) CommonStyles {

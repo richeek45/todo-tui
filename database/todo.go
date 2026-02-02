@@ -114,7 +114,7 @@ func (r *TodoRepository) GetTodosWithCursor(
 
 	orderClause := r.generateOrderClause(pagination.OrderBy, pagination.OrderDir)
 
-	if direction == "prev" {
+	if direction == "prev" || filter.Search != "" {
 		orderClause = r.reverseOrderClause(pagination.OrderBy, pagination.OrderDir)
 	}
 
@@ -127,7 +127,8 @@ func (r *TodoRepository) GetTodosWithCursor(
 			return nil, fmt.Errorf("invalid cursor: %v", err)
 		}
 
-		if direction == "next" {
+		// NOTE: Search should reverse the orderBy=created_at to search all the newly created tasks
+		if direction == "next" && filter.Search == "" {
 			cursorClause, cursorArgs = r.buildCursorCondition(cursor, pagination.OrderBy, pagination.OrderDir, false)
 		} else {
 			cursorClause, cursorArgs = r.buildCursorCondition(cursor, pagination.OrderBy, pagination.OrderDir, true)
@@ -184,25 +185,6 @@ func (r *TodoRepository) GetTodosWithCursor(
 	var nextCursor, prevCursor string
 	hasNext := false
 	hasPrev := false
-
-	if len(tasks) > pagination.Limit {
-		hasNext = true
-		tasks = tasks[:pagination.Limit]
-
-		// Create cursor from last item
-		lastTodo := tasks[len(tasks)-1]
-		cursor := paginationPkg.Cursor{
-			Id:        lastTodo.Id,
-			CreatedAt: lastTodo.CreatedAt,
-			OrderBy:   pagination.OrderBy,
-			OrderDir:  pagination.OrderDir,
-		}
-
-		nextCursor, err = paginationPkg.EncodeCursor(cursor)
-		if err != nil {
-			return nil, err
-		}
-	}
 
 	// For forward pagination
 	if direction == "next" {

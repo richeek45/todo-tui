@@ -45,6 +45,7 @@ type LayoutConfig struct {
 	Title        ColumnConfig
 	Description  ColumnConfig
 	ReviewStatus ColumnConfig
+	Priority     ColumnConfig
 	State        ColumnConfig
 	Ci           ColumnConfig
 	Lines        ColumnConfig
@@ -88,6 +89,9 @@ var DefaultConfig = &Config{
 				Width: utils.IntPtr(15),
 			},
 			ReviewStatus: ColumnConfig{
+				Width: utils.IntPtr(15),
+			},
+			Priority: ColumnConfig{
 				Width: utils.IntPtr(15),
 			},
 			Lines: ColumnConfig{

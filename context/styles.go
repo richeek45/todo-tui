@@ -40,8 +40,9 @@ type Styles struct {
 		EmptyStateStyle  lipgloss.Style
 		KeyStyle         lipgloss.Style
 	}
-	FooterStyle lipgloss.Style
-	Common      common.CommonStyles
+	FooterStyle   lipgloss.Style
+	PageInfoStyle lipgloss.Style
+	Common        common.CommonStyles
 }
 
 var (
@@ -93,7 +94,7 @@ func InitStyles(theme theme.Theme) Styles {
 
 	s.Section.ContainerPadding = 1
 	s.Section.ContainerStyle = lipgloss.NewStyle().
-		Padding(0, s.Section.ContainerPadding)
+		Padding(0, s.Section.ContainerPadding).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("37"))
 	s.Section.SpinnerStyle = lipgloss.NewStyle().Padding(0, 1)
 	s.Section.EmptyStateStyle = lipgloss.NewStyle().
 		Faint(true).
@@ -129,6 +130,9 @@ func InitStyles(theme theme.Theme) Styles {
 	s.FooterStyle = lipgloss.NewStyle().
 		Background(theme.SelectedBackground).
 		Height(FooterHeight)
+
+	s.PageInfoStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("245"))
 
 	return s
 }
