@@ -147,8 +147,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// cmds = append(cmds, syncCmd)
 	}
 
-	m.SyncProgramContext(m.ctx)
 	m.SyncSideBar()
+	m.SyncProgramContext(m.ctx)
 
 	m.sidebar, sidebarCmd = m.sidebar.Update(msg)
 	cmds = append(cmds, cmd, listCmd, sidebarCmd)
@@ -266,17 +266,14 @@ func (m Model) handleBrowsingKeys(
 		m.setCurrentViewSections(newSections)
 		m.setCurrSectionId(1)
 		return m, cmd
-
 	case key.Matches(msg, m.keys.NextPage):
 		section := m.GetCurrSection()
 		fetchCmd := section.FetchNextPage()
-		cmds = append(cmds, fetchCmd)
-
+		return m, fetchCmd
 	case key.Matches(msg, m.keys.PrevPage):
 		section := m.GetCurrSection()
 		fetchCmd := section.FetchPrevPage()
-		cmds = append(cmds, fetchCmd)
-
+		return m, fetchCmd
 	case key.Matches(msg, m.keys.AddTask):
 		m.ctx.CurrentState = context.StateAdding
 	case key.Matches(msg, m.keys.EditTask):
@@ -299,7 +296,6 @@ func (m Model) handleBrowsingKeys(
 			m.ctx.MainContentHeight = m.ctx.MainContentHeight +
 				context.ExpandedHelpHeight - context.FooterHeight
 		}
-
 	}
 
 	return m, cmd

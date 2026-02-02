@@ -134,27 +134,6 @@ func (r *TodoRepository) GetTodosWithCursor(
 		}
 	}
 
-	if pagination.Cursor != "" {
-		cursor, err := paginationPkg.DecodeCursor(pagination.Cursor)
-		if err != nil {
-			return nil, fmt.Errorf("invalid cursor: %v", err)
-		}
-
-		comparator := "<"
-		if pagination.OrderDir == "ASC" {
-			comparator = ">"
-		}
-
-		cursorClause = fmt.Sprintf("AND (%s %s ? OR (%s = ? AND id %s ?))", cursor.OrderBy, comparator, cursor.OrderBy, comparator)
-
-		if cursor.OrderBy == "priority" {
-			priorityValue := map[string]int{"high": 1, "medium": 2, "low": 3}
-			args = append(args, priorityValue[cursor.OrderBy], priorityValue[cursor.OrderBy], cursor.Id)
-		} else {
-			args = append(args, cursor.CreatedAt, cursor.CreatedAt, cursor.Id)
-		}
-	}
-
 	query := fmt.Sprintf(`
 		SELECT id, title, description, status, priority, due_date, completed_at, created_at, updated_at
 		FROM todos

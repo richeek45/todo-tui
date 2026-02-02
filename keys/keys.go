@@ -81,12 +81,12 @@ var Keys = &KeyMap{
 		key.WithHelp("Page down", "Sidebar Page Down"),
 	),
 	NextPage: key.NewBinding(
-		key.WithKeys("l"),
-		key.WithHelp("l", "Next Page"),
+		key.WithKeys("ctrl+l"),
+		key.WithHelp("ctrl+l", "Next Page"),
 	),
 	PrevPage: key.NewBinding(
-		key.WithKeys("j"),
-		key.WithHelp("j", "PrevPage"),
+		key.WithKeys("ctrl+h"),
+		key.WithHelp("ctrl+h", "PrevPage"),
 	),
 	Help: key.NewBinding(
 		key.WithKeys("?"),

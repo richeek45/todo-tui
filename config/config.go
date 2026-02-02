@@ -69,7 +69,7 @@ var DefaultConfig = &Config{
 			Open:  true,
 			Width: 70,
 		},
-		TaskLimit: 10,
+		TaskLimit: 2,
 		View:      Priority,
 		Layout: LayoutConfig{
 			UpdatedAt: ColumnConfig{

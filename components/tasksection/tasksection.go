@@ -2,9 +2,7 @@ package tasksection
 
 import (
 	ctx "context"
-	"fmt"
 	"log"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/richeek45/todo-tui/components/section"
@@ -24,7 +22,6 @@ type Model struct {
 
 type SectionTaskDataFetchedMsg struct {
 	Tasks          []models.Task
-	TaskId         string
 	TotalCount     int
 	PaginatedTodos *models.PaginatedTodos
 }
@@ -177,9 +174,6 @@ func (m *Model) FetchNextPageSectionRows(direction string) []tea.Cmd {
 	}
 
 	if m.PaginatedTodos != nil {
-		// if !m.PaginatedTodos.HasNext {
-		// 	return nil
-		// }
 		if direction == "next" && m.PaginatedTodos.HasNext {
 			m.Pagination.Cursor = m.PaginatedTodos.NextCursor
 		}
@@ -190,14 +184,6 @@ func (m *Model) FetchNextPageSectionRows(direction string) []tea.Cmd {
 	}
 
 	var cmds []tea.Cmd
-
-	startCursor := time.Now().String()
-	// if m.PageInfo != nil {
-	// 	startCursor = m.PageInfo.StartCursor
-	// }
-	taskId := fmt.Sprintf("fetching_prs_%d_%s", m.Id, startCursor)
-	isFirstFetch := m.LastFetchTaskId == ""
-	m.LastFetchTaskId = taskId
 
 	fetchCmd := func() tea.Msg {
 		limit := m.Config.Limit
@@ -235,9 +221,8 @@ func (m *Model) FetchNextPageSectionRows(direction string) []tea.Cmd {
 			SectionId: m.Id,
 			Msg: SectionTaskDataFetchedMsg{
 				Tasks:          tasks,
-				TotalCount:     len(paginatedTodos.Todos),
+				TotalCount:     paginatedTodos.TotalCount,
 				PaginatedTodos: paginatedTodos,
-				TaskId:         taskId,
 			},
 		}
 	}
@@ -246,6 +231,7 @@ func (m *Model) FetchNextPageSectionRows(direction string) []tea.Cmd {
 
 	m.Ctx.Loading = true
 	m.IsLoading = true
+	isFirstFetch := m.PaginatedTodos == nil
 	if isFirstFetch {
 		m.SetIsLoading(true)
 		cmds = append(cmds, m.Table.StartLoadingSpinner())
