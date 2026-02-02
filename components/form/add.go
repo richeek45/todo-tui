@@ -1,18 +1,28 @@
 package form
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/google/uuid"
+	"github.com/richeek45/todo-tui/components/tasksection"
+	ctx "github.com/richeek45/todo-tui/context"
 	"github.com/richeek45/todo-tui/models"
 )
 
 var (
+	errorStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("9")).
+			Bold(true)
+
+	successStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("10")).
+			Bold(true)
 	filterInputStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
 				BorderForeground(lipgloss.Color("69")).
@@ -28,6 +38,9 @@ type Model struct {
 	DescInput     textarea.Model
 	PriorityInput textinput.Model
 	StatusInput   textinput.Model
+	Ctx           *ctx.ProgramContext
+	errorMsg      string
+	successMsg    string
 }
 
 func NewModel() Model {
@@ -78,14 +91,42 @@ func (m Model) Update(msg tea.KeyMsg, cmd tea.Cmd) (Model, tea.Cmd) {
 			m.StatusInput.Blur()
 			m.TitleInput.Focus()
 		}
-	// case "enter":
-	// 	// save the task
+	case "ctrl+s":
+		if m.TitleInput.Value() == "" {
+			m.errorMsg = "Title is required"
+			return m, nil
+		}
+
+		todo := &models.Task{
+			Id:          uuid.New().String(),
+			Title:       m.TitleInput.Value(),
+			Description: m.DescInput.Value(),
+			Priority:    models.Priority(m.PriorityInput.Value()),
+			Status:      models.NotStarted,
+		}
+
+		err := m.Ctx.Repo.CreateTodo(context.TODO(), todo)
+		if err != nil {
+			m.errorMsg = "Failed to create todo: " + err.Error()
+			return m, nil
+		}
+
+		m.successMsg = "Todo added successfully!"
+		m.Ctx.CurrentState = ctx.StateBrowsing
+		m.ResetAddForm()
+		m.Ctx.Loading = true
+		return m, tasksection.LoadTodosCmd(
+			1,
+			m.Ctx.Repo,
+			models.CursorPagination{Limit: 10, OrderBy: "created_at", OrderDir: "DESC"},
+			"next",
+		)
+
 	default:
 		if m.TitleInput.Focused() {
 			m.TitleInput, cmd = m.TitleInput.Update(msg)
 			cmds = append(cmds, cmd)
 		} else if m.DescInput.Focused() {
-			log.Print("Desc Focus")
 			m.DescInput, cmd = m.DescInput.Update(msg)
 			cmds = append(cmds, cmd)
 		} else if m.PriorityInput.Focused() {
@@ -109,7 +150,15 @@ func (m Model) View() string {
 	content.WriteString(filterLabelStyle.Render("Add New Todo (Tab to navigate, Enter to save, Esc to cancel)"))
 	content.WriteString("\n\n")
 
-	log.Print("Placeholder= ", m.TitleInput.Placeholder)
+	if m.errorMsg != "" {
+		content.WriteString(errorStyle.Render("✗ " + m.errorMsg))
+		content.WriteString("\n\n")
+	}
+
+	if m.successMsg != "" {
+		content.WriteString(successStyle.Render("✓ " + m.successMsg))
+		content.WriteString("\n\n")
+	}
 
 	fmt.Fprintf(&content, "%s %s\n",
 		filterLabelStyle.Render("Title:"),
@@ -136,4 +185,8 @@ func (m *Model) ResetAddForm() {
 	m.PriorityInput.SetValue(string(models.PriorityMedium))
 	m.StatusInput.SetValue(string(models.NotStarted))
 	m.TitleInput.Focus()
+}
+
+func (m *Model) UpdateProgramContext(ctx *ctx.ProgramContext) {
+	m.Ctx = ctx
 }

@@ -30,6 +30,8 @@ type BaseModel struct {
 	Columns         []table.Column
 	TotalCount      int
 	LastFetchTaskId string
+	Pagination      models.CursorPagination
+	PaginatedTodos  *models.PaginatedTodos
 }
 
 type NewSectionOptions struct {
@@ -59,6 +61,7 @@ func NewModel(
 		Columns:     options.Columns,
 		IsSearching: false,
 		TotalCount:  0,
+		Pagination:  models.CursorPagination{Limit: 10, OrderBy: "created_at", OrderDir: "DESC"},
 	}
 
 	emptyMsg := m.Ctx.Styles.Section.EmptyStateStyle.Render(
@@ -116,7 +119,9 @@ type Table interface {
 	LastItem() int
 	GetIsLoading() bool
 	BuildRows() []table.Row
-	FetchNextPageSectionRows() []tea.Cmd
+	FetchNextPage() tea.Cmd
+	FetchPrevPage() tea.Cmd
+	FetchNextPageSectionRows(direction string) []tea.Cmd
 }
 
 type Search interface {

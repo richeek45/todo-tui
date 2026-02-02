@@ -17,6 +17,8 @@ type KeyMap struct {
 	Enter           key.Binding
 	PageUp          key.Binding
 	PageDown        key.Binding
+	NextPage        key.Binding
+	PrevPage        key.Binding
 	Help            key.Binding
 	Esc             key.Binding
 }
@@ -77,6 +79,14 @@ var Keys = &KeyMap{
 	PageDown: key.NewBinding(
 		key.WithKeys("ctrl+u"),
 		key.WithHelp("Page down", "Sidebar Page Down"),
+	),
+	NextPage: key.NewBinding(
+		key.WithKeys("l"),
+		key.WithHelp("l", "Next Page"),
+	),
+	PrevPage: key.NewBinding(
+		key.WithKeys("j"),
+		key.WithHelp("j", "PrevPage"),
 	),
 	Help: key.NewBinding(
 		key.WithKeys("?"),

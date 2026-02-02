@@ -13,6 +13,7 @@ import (
 	"github.com/richeek45/todo-tui/config"
 	"github.com/richeek45/todo-tui/constants"
 	"github.com/richeek45/todo-tui/context"
+	"github.com/richeek45/todo-tui/database"
 	"github.com/richeek45/todo-tui/models"
 )
 
@@ -22,10 +23,10 @@ type Model struct {
 }
 
 type SectionTaskDataFetchedMsg struct {
-	Tasks      []models.Task
-	TotalCount int
-	PageInfo   config.PageInfo
-	TaskId     string
+	Tasks          []models.Task
+	TaskId         string
+	TotalCount     int
+	PaginatedTodos *models.PaginatedTodos
 }
 
 // need to pass it as prop with the FilterType in NewModel func
@@ -70,25 +71,38 @@ func (m *Model) Update(msg tea.Msg) (section.Section, tea.Cmd) {
 				return m, blinkCmd
 			case tea.KeyEnter:
 				m.SearchValue = m.SearchBar.Value()
+				log.Print(m.SearchValue)
 				m.SetIsSearching(false)
 				m.ResetRows()
-				return m, tea.Batch(m.FetchNextPageSectionRows()...)
+				return m, tea.Batch(m.FetchNextPageSectionRows("next")...)
 			}
 		}
 	case SectionTaskDataFetchedMsg:
-		if m.LastFetchTaskId == msg.TaskId {
-			if m.PageInfo != nil {
-				m.Tasks = append(m.Tasks, msg.Tasks...)
-			} else {
-				m.Tasks = msg.Tasks
-			}
-			m.TotalCount = msg.TotalCount
-			m.PageInfo = &msg.PageInfo
-			m.SetIsLoading(false)
-			m.Table.SetRows(m.BuildRows())
-			// m.Table.UpdateLastUpdated(time.Now())
-			m.UpdateTotalItemsCount(m.TotalCount)
+		// if msg.err != nil {
+		// 	m.errorMsg = "Failed to load todos: " + msg.err.Error()
+		// 	return m, nil
+		// }
+
+		// m.successMsg = ""
+
+		// if m.PageInfo != nil {
+		// 	m.Tasks = append(m.Tasks, msg.Tasks...)
+		// } else {
+		// 	m.Tasks = msg.Tasks
+		// }
+		m.PaginatedTodos = msg.PaginatedTodos
+		if msg.PaginatedTodos != nil {
+			m.Tasks = msg.PaginatedTodos.Todos
+		} else {
+			m.Tasks = []models.Task{}
 		}
+
+		m.TotalCount = msg.TotalCount
+		m.SetIsLoading(false)
+		m.Ctx.Loading = false
+		m.Table.SetRows(m.BuildRows())
+		// m.Table.UpdateLastUpdated(time.Now())
+		m.UpdateTotalItemsCount(m.TotalCount)
 	}
 
 	search, searchCmd := m.SearchBar.Update(msg)
@@ -158,20 +172,32 @@ func (m *Model) GetCurrRow() *models.Task {
 	return &m.Tasks[i]
 }
 
-func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
+func (m *Model) FetchNextPageSectionRows(direction string) []tea.Cmd {
 	if m == nil {
 		return nil
 	}
 
-	if m.PageInfo != nil && !m.PageInfo.HasNextPage {
-		return nil
+	if m.PaginatedTodos != nil {
+		// if !m.PaginatedTodos.HasNext {
+		// 	return nil
+		// }
+		if direction == "next" && m.PaginatedTodos.HasNext {
+			m.Pagination.Cursor = m.PaginatedTodos.NextCursor
+		}
+
+		if direction == "prev" && m.PaginatedTodos.HasPrev {
+			m.Pagination.Cursor = m.PaginatedTodos.PrevCursor
+		}
 	}
 
 	var cmds []tea.Cmd
 
 	startCursor := time.Now().String()
+	// if m.PageInfo != nil {
+	// 	startCursor = m.PageInfo.StartCursor
+	// }
+	taskId := fmt.Sprintf("fetching_prs_%d_%s", m.Id, startCursor)
 	isFirstFetch := m.LastFetchTaskId == ""
-	taskId := fmt.Sprintf("fetching_tasks_%d_%s", m.Id, startCursor)
 	m.LastFetchTaskId = taskId
 
 	fetchCmd := func() tea.Msg {
@@ -182,7 +208,6 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 		}
 
 		var filter models.TodoFilter
-		var pagination models.CursorPagination
 
 		if m.Config.FilterType == string(config.Priority) {
 			filter.Priority = models.Priority(m.Config.FilterValue)
@@ -196,10 +221,7 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 			filter.Search = m.SearchValue
 		}
 
-		pagination.OrderBy = "ASC"
-		pagination.OrderDir = "next"
-
-		paginatedTodos, err := m.Ctx.Repo.GetTodosWithCursor(ctx.TODO(), filter, pagination)
+		paginatedTodos, err := m.Ctx.Repo.GetTodosWithCursor(ctx.TODO(), filter, m.Pagination, direction)
 
 		if err != nil {
 			log.Fatal(err)
@@ -207,26 +229,23 @@ func (m *Model) FetchNextPageSectionRows() []tea.Cmd {
 
 		tasks := make([]models.Task, 0)
 		for _, task := range paginatedTodos.Todos {
-			log.Print(task.Description)
 			tasks = append(tasks, task)
 		}
 
 		return constants.TaskFinishedMsg{
-			SectionId:   m.Id,
-			SectionType: m.Type,
-			TaskId:      taskId,
+			SectionId: m.Id,
 			Msg: SectionTaskDataFetchedMsg{
-				Tasks:      tasks,
-				TotalCount: len(paginatedTodos.Todos),
-				// 		pagination:   models.CursorPagination{Limit: 10, OrderBy: "created_at", OrderDir: "DESC"},
-				PageInfo: config.PageInfo{HasNextPage: paginatedTodos.HasNext, StartCursor: "1", EndCursor: "3"}, // res.PageInfo
-				TaskId:   taskId,
+				Tasks:          tasks,
+				TotalCount:     len(paginatedTodos.Todos),
+				PaginatedTodos: paginatedTodos,
+				TaskId:         taskId,
 			},
 		}
 	}
 
 	cmds = append(cmds, fetchCmd)
 
+	m.Ctx.Loading = true
 	m.IsLoading = true
 	if isFirstFetch {
 		m.SetIsLoading(true)
@@ -244,7 +263,6 @@ func FetchAllSections(
 
 	var sectionConfig []config.SectionConfig
 
-	// Create different Sections for this
 	switch filterType {
 	case config.Category:
 		sectionConfig = ctx.Config.TaskSections
@@ -254,7 +272,7 @@ func FetchAllSections(
 		sectionConfig = ctx.Config.TaskSections
 	}
 
-	fetchPRsCmds := make([]tea.Cmd, 0, len(sectionConfig))
+	fetchTaskCmds := make([]tea.Cmd, 0, len(sectionConfig))
 	sections = make([]section.Section, 0, len(sectionConfig))
 	for i, sectionConfig := range sectionConfig {
 		sectionModel := NewModel(
@@ -268,14 +286,53 @@ func FetchAllSections(
 			sectionModel.LastFetchTaskId = oldSection.LastFetchTaskId
 		}
 		sections = append(sections, &sectionModel)
-		fetchPRsCmds = append(
-			fetchPRsCmds,
-			sectionModel.FetchNextPageSectionRows()...)
+
+		fetchTaskCmds = append(
+			fetchTaskCmds,
+			sectionModel.FetchNextPageSectionRows("next")...)
 	}
-	return sections, tea.Batch(fetchPRsCmds...)
+	return sections, tea.Batch(fetchTaskCmds...)
 }
 
 func (m *Model) SetIsLoading(val bool) {
 	m.IsLoading = val
 	m.Table.SetIsLoading(val)
+}
+
+func (m *Model) FetchNextPage() tea.Cmd {
+	return tea.Batch(m.FetchNextPageSectionRows("next")...)
+}
+
+func (m *Model) FetchPrevPage() tea.Cmd {
+	return tea.Batch(m.FetchNextPageSectionRows("prev")...)
+}
+
+func LoadTodosCmd(
+	sectionId int,
+	repo *database.TodoRepository,
+	pagination models.CursorPagination,
+	direction string,
+) tea.Cmd {
+	var filter models.TodoFilter
+
+	return func() tea.Msg {
+		paginatedTodos, err := repo.GetTodosWithCursor(ctx.Background(), filter, pagination, direction)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		tasks := make([]models.Task, 0)
+		for _, task := range paginatedTodos.Todos {
+			tasks = append(tasks, task)
+		}
+		return constants.TaskFinishedMsg{
+			SectionId: sectionId,
+			Msg: SectionTaskDataFetchedMsg{
+				Tasks:          tasks,
+				TotalCount:     len(paginatedTodos.Todos),
+				PaginatedTodos: paginatedTodos,
+			},
+		}
+	}
 }

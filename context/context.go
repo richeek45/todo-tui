@@ -6,6 +6,16 @@ import (
 	"github.com/richeek45/todo-tui/theme"
 )
 
+type State int
+
+const (
+	StateBrowsing State = iota
+	StateFiltering
+	StateAdding
+	StateEditing
+	StateDeleting
+)
+
 type ProgramContext struct {
 	ScreenWidth       int
 	ScreenHeight      int
@@ -16,4 +26,6 @@ type ProgramContext struct {
 	Theme             theme.Theme
 	View              config.FilterType
 	Repo              *database.TodoRepository
+	Loading           bool
+	CurrentState      State
 }

@@ -3,7 +3,6 @@ package pagination
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"time"
 )
 
@@ -33,35 +32,4 @@ func DecodeCursor(encoded string) (Cursor, error) {
 
 	err = json.Unmarshal(data, &cursor)
 	return cursor, err
-}
-
-func GenerateOrderClause(orderBy, orderDir string) string {
-	if orderBy == "" {
-		orderBy = "created_at"
-	}
-
-	if orderDir == "" {
-		orderDir = "DESC"
-	}
-
-	validOrderBy := map[string]bool{
-		"id": true, "created_at": true, "due_date": true,
-		"completed_at": true, "priority": true,
-	}
-
-	validOrderDir := map[string]bool{"ASC": true, "DESC": true}
-
-	if !validOrderBy[orderBy] {
-		orderBy = "created_at"
-	}
-
-	if !validOrderDir[orderDir] {
-		orderDir = "DESC"
-	}
-
-	if orderBy == "priority" {
-		return fmt.Sprintf("CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END %s, created_at %s", orderDir, orderDir)
-	}
-
-	return fmt.Sprintf("%s %s, id %s", orderBy, orderDir, orderDir)
 }

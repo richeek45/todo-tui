@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/richeek45/todo-tui/models"
-	"github.com/richeek45/todo-tui/pagination"
+	paginationPkg "github.com/richeek45/todo-tui/pagination"
 )
 
 type TodoRepository struct {
@@ -46,31 +46,51 @@ func (r *TodoRepository) CreateTodo(ctx context.Context, task *models.Task) erro
 func (r *TodoRepository) GetTodosWithCursor(
 	ctx context.Context,
 	filter models.TodoFilter,
-	paginationVar models.CursorPagination,
+	pagination models.CursorPagination,
+	direction string,
 ) (*models.PaginatedTodos, error) {
-	if paginationVar.Limit == 0 {
-		paginationVar.Limit = 10
+	if pagination.Limit == 0 {
+		pagination.Limit = 10
 	}
-	if paginationVar.OrderBy == "" {
-		paginationVar.OrderBy = "created_at"
+	if pagination.OrderBy == "" {
+		pagination.OrderBy = "created_at"
 	}
-	if paginationVar.OrderDir == "" {
-		paginationVar.OrderDir = "DESC"
+	if pagination.OrderDir == "" {
+		pagination.OrderDir = "DESC"
 	}
 
 	whereClause, args := buildWhereClause(filter)
 
-	orderClause := pagination.GenerateOrderClause(paginationVar.OrderBy, paginationVar.OrderDir)
+	orderClause := r.generateOrderClause(pagination.OrderBy, pagination.OrderDir)
+
+	if direction == "prev" {
+		orderClause = r.reverseOrderClause(pagination.OrderBy, pagination.OrderDir)
+	}
 
 	cursorClause := ""
-	if paginationVar.Cursor != "" {
-		cursor, err := pagination.DecodeCursor(paginationVar.Cursor)
+	var cursorArgs []interface{}
+
+	if pagination.Cursor != "" {
+		cursor, err := paginationPkg.DecodeCursor(pagination.Cursor)
+		if err != nil {
+			return nil, fmt.Errorf("invalid cursor: %v", err)
+		}
+
+		if direction == "next" {
+			cursorClause, cursorArgs = r.buildCursorCondition(cursor, pagination.OrderBy, pagination.OrderDir, false)
+		} else {
+			cursorClause, cursorArgs = r.buildCursorCondition(cursor, pagination.OrderBy, pagination.OrderDir, true)
+		}
+	}
+
+	if pagination.Cursor != "" {
+		cursor, err := paginationPkg.DecodeCursor(pagination.Cursor)
 		if err != nil {
 			return nil, fmt.Errorf("invalid cursor: %v", err)
 		}
 
 		comparator := "<"
-		if paginationVar.OrderDir == "ASC" {
+		if pagination.OrderDir == "ASC" {
 			comparator = ">"
 		}
 
@@ -93,7 +113,8 @@ func (r *TodoRepository) GetTodosWithCursor(
 		whereClause, cursorClause, orderClause,
 	)
 
-	args = append(args, paginationVar.Limit+1)
+	args = append(args, cursorArgs...)
+	args = append(args, pagination.Limit+1)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -125,32 +146,110 @@ func (r *TodoRepository) GetTodosWithCursor(
 		tasks = append(tasks, task)
 	}
 
-	hasNext := false
-	var nextCursor string
+	totalCount, err := r.getTotalCount(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
 
-	if len(tasks) > paginationVar.Limit {
+	var nextCursor, prevCursor string
+	hasNext := false
+	hasPrev := false
+
+	if len(tasks) > pagination.Limit {
 		hasNext = true
-		tasks = tasks[:paginationVar.Limit]
+		tasks = tasks[:pagination.Limit]
 
 		// Create cursor from last item
 		lastTodo := tasks[len(tasks)-1]
-		cursor := pagination.Cursor{
+		cursor := paginationPkg.Cursor{
 			Id:        lastTodo.Id,
 			CreatedAt: lastTodo.CreatedAt,
-			OrderBy:   paginationVar.OrderBy,
-			OrderDir:  paginationVar.OrderDir,
+			OrderBy:   pagination.OrderBy,
+			OrderDir:  pagination.OrderDir,
 		}
 
-		nextCursor, err = pagination.EncodeCursor(cursor)
+		nextCursor, err = paginationPkg.EncodeCursor(cursor)
 		if err != nil {
 			return nil, err
 		}
 	}
 
+	// For forward pagination
+	if direction == "next" {
+		if len(tasks) > pagination.Limit {
+			hasNext = true
+			tasks = tasks[:pagination.Limit]
+
+			lastTodo := tasks[len(tasks)-1]
+			c := paginationPkg.Cursor{
+				Id:        lastTodo.Id,
+				CreatedAt: lastTodo.CreatedAt,
+				OrderBy:   pagination.OrderBy,
+				OrderDir:  pagination.OrderDir,
+			}
+			nextCursor, _ = paginationPkg.EncodeCursor(c)
+		}
+
+		// Check if we have previous items
+		if pagination.Cursor != "" {
+			hasPrev = true
+			// To get prev cursor, we need to go to the first item
+			if len(tasks) > 0 {
+				firstTodo := tasks[0]
+				prevC := paginationPkg.Cursor{
+					Id:        firstTodo.Id,
+					CreatedAt: firstTodo.CreatedAt,
+					OrderBy:   pagination.OrderBy,
+					OrderDir:  pagination.OrderDir,
+				}
+				prevCursor, _ = paginationPkg.EncodeCursor(prevC)
+			}
+		}
+	} else {
+		// For backward pagination
+		if len(tasks) > pagination.Limit {
+			hasPrev = true
+			tasks = tasks[:pagination.Limit]
+		}
+
+		// Reverse the list for natural order
+		for i, j := 0, len(tasks)-1; i < j; i, j = i+1, j-1 {
+			tasks[i], tasks[j] = tasks[j], tasks[i]
+		}
+
+		// Set next cursor
+		if len(tasks) > 0 {
+			lastTodo := tasks[len(tasks)-1]
+			c := paginationPkg.Cursor{
+				Id:        lastTodo.Id,
+				CreatedAt: lastTodo.CreatedAt,
+				OrderBy:   pagination.OrderBy,
+				OrderDir:  pagination.OrderDir,
+			}
+			nextCursor, _ = paginationPkg.EncodeCursor(c)
+		}
+
+		// Set previous cursor if we have more items
+		if len(tasks) == pagination.Limit && hasPrev {
+			firstTodo := tasks[0]
+			c := paginationPkg.Cursor{
+				Id:        firstTodo.Id,
+				CreatedAt: firstTodo.CreatedAt,
+				OrderBy:   pagination.OrderBy,
+				OrderDir:  pagination.OrderDir,
+			}
+			prevCursor, _ = paginationPkg.EncodeCursor(c)
+		}
+		hasNext = true // Always has next when going back
+	}
+
 	return &models.PaginatedTodos{
 		Todos:      tasks,
 		NextCursor: nextCursor,
+		PrevCursor: prevCursor,
 		HasNext:    hasNext,
+		HasPrev:    hasPrev,
+		TotalCount: totalCount,
 	}, nil
 
 }
@@ -199,4 +298,93 @@ func buildWhereClause(filter models.TodoFilter) (string, []interface{}) {
 	}
 
 	return "AND " + strings.Join(conditions, " AND "), args
+}
+
+func (r *TodoRepository) getTotalCount(ctx context.Context, filter models.TodoFilter) (int, error) {
+	whereClause, args := buildWhereClause(filter)
+
+	query := fmt.Sprintf("SELECT COUNT(*) FROM todos WHERE 1=1 %s", whereClause)
+
+	var count int
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(&count)
+	return count, err
+}
+
+func (r *TodoRepository) buildCursorCondition(c paginationPkg.Cursor, orderBy, orderDir string, isReverse bool) (string, []interface{}) {
+	comparator := "<"
+	reverseComparator := ">"
+
+	if orderDir == "ASC" && !isReverse {
+		comparator = ">"
+		reverseComparator = "<"
+	} else if isReverse {
+		// Swap comparators for reverse direction
+		comparator, reverseComparator = reverseComparator, comparator
+	}
+
+	if orderBy == "priority" {
+		priorityValue := map[string]int{"high": 1, "medium": 2, "low": 3}
+		val := priorityValue[c.OrderBy]
+		return fmt.Sprintf(
+			"AND ((CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END) %s ? OR "+
+				"((CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END) = ? AND created_at %s ?) OR "+
+				"((CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END) = ? AND created_at = ? AND id %s ?))",
+			comparator, comparator, comparator,
+		), []interface{}{val, val, c.CreatedAt, val, c.CreatedAt, c.Id}
+	}
+
+	if orderBy == "status" {
+		statusValue := map[string]int{"completed": 1, "in_progress": 2, "pending": 3}
+		val := statusValue[c.OrderBy]
+		return fmt.Sprintf(
+			"AND ((CASE status WHEN 'completed' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'pending' THEN 3 END) %s ? OR "+
+				"((CASE status WHEN 'completed' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'pending' THEN 3 END) = ? AND created_at %s ?) OR "+
+				"((CASE status WHEN 'completed' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'pending' THEN 3 END) = ? AND created_at = ? AND id %s ?))",
+			comparator, comparator, comparator,
+		), []interface{}{val, val, c.CreatedAt, val, c.CreatedAt, c.Id}
+	}
+
+	return fmt.Sprintf(
+		"AND (%s %s ? OR (%s = ? AND id %s ?))",
+		c.OrderBy, comparator, c.OrderBy, comparator,
+	), []interface{}{c.CreatedAt, c.CreatedAt, c.Id}
+}
+
+func (r *TodoRepository) reverseOrderClause(orderBy, orderDir string) string {
+	reverseDir := "ASC"
+	if orderDir == "ASC" {
+		reverseDir = "DESC"
+	}
+	return r.generateOrderClause(orderBy, reverseDir)
+}
+
+func (r *TodoRepository) generateOrderClause(orderBy, orderDir string) string {
+	if orderBy == "" {
+		orderBy = "created_at"
+	}
+
+	if orderDir == "" {
+		orderDir = "DESC"
+	}
+
+	validOrderBy := map[string]bool{
+		"id": true, "created_at": true, "due_date": true,
+		"completed_at": true, "priority": true,
+	}
+
+	validOrderDir := map[string]bool{"ASC": true, "DESC": true}
+
+	if !validOrderBy[orderBy] {
+		orderBy = "created_at"
+	}
+
+	if !validOrderDir[orderDir] {
+		orderDir = "DESC"
+	}
+
+	if orderBy == "priority" {
+		return fmt.Sprintf("CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END %s, created_at %s", orderDir, orderDir)
+	}
+
+	return fmt.Sprintf("%s %s, id %s", orderBy, orderDir, orderDir)
 }

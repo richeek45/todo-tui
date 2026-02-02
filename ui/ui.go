@@ -28,24 +28,6 @@ import (
 	"github.com/richeek45/todo-tui/theme"
 )
 
-const (
-// bullet   = "•"
-)
-
-type Item struct {
-	title, desc string
-}
-
-type state int
-
-const (
-	stateBrowsing state = iota
-	stateFiltering
-	stateAdding
-	stateEditing
-	stateDeleting
-)
-
 type Model struct {
 	sidebar       sidebar.Model
 	addTaskForm   form.Model
@@ -58,15 +40,13 @@ type Model struct {
 	statusTasks   []section.Section
 	ctx           *context.ProgramContext
 	Tasks         map[string]models.Task
-	CurrentState  state
-	pagination    models.CursorPagination
 }
 
 type initMsg struct {
 	Config config.Config
 }
 
-func NewModel(items []Item) Model {
+func NewModel() Model {
 
 	db, err := database.NewDB("test.db")
 	if err != nil {
@@ -86,16 +66,16 @@ func NewModel(items []Item) Model {
 	taskRepo := database.NewTodoRepository(db)
 
 	m := Model{
-		keys:         keys.Keys,
-		sidebar:      sidebar.NewModel(),
-		taskSpinner:  spinner.Model{Spinner: spinner.Ellipsis},
-		CurrentState: stateBrowsing,
-		addTaskForm:  form.NewModel(),
-		pagination:   models.CursorPagination{Limit: 10, OrderBy: "created_at", OrderDir: "DESC"},
+		keys:        keys.Keys,
+		sidebar:     sidebar.NewModel(),
+		taskSpinner: spinner.Model{Spinner: spinner.Ellipsis},
+		addTaskForm: form.NewModel(),
 	}
 
 	m.ctx = &context.ProgramContext{
-		Repo: taskRepo,
+		Repo:         taskRepo,
+		Loading:      true,
+		CurrentState: context.StateBrowsing,
 	}
 
 	m.tabs = tabs.NewModel(m.ctx)
@@ -128,14 +108,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 
 		if currSection != nil && (currSection.IsSearchFocused()) {
-			cmd = m.updateSection(currSection.GetId(), currSection.GetType(), msg)
+			cmd = m.updateSection(currSection.GetId(), msg)
 			return m, cmd
 		}
 
-		switch m.CurrentState {
-		case stateBrowsing:
+		switch m.ctx.CurrentState {
+		case context.StateBrowsing:
 			m, cmd = m.handleBrowsingKeys(msg, currSection, cmd, cmds)
-		case stateAdding:
+		case context.StateAdding:
 			m, cmd = m.handleAddingTaskKeys(msg, cmd)
 		}
 
@@ -157,7 +137,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, fetchSectionsCmds)
 
 	case constants.TaskFinishedMsg:
-		sectionCmd := m.updateSection(msg.SectionId, msg.SectionType, msg.Msg)
+		sectionCmd := m.updateSection(msg.SectionId, msg.Msg)
 		cmds = append(cmds, sectionCmd)
 
 		// syncCmd := m.SyncSideBar()
@@ -179,12 +159,17 @@ func (m Model) View() string {
 
 	content := strings.Builder{}
 
-	switch m.CurrentState {
-	case stateBrowsing:
+	if m.ctx.Loading {
+		content.WriteString(m.taskSpinner.View())
+		return content.String()
+	}
+
+	switch m.ctx.CurrentState {
+	case context.StateBrowsing:
 		content.WriteString(m.renderBrowsingView())
 	// case stateFiltering:
 	// 	content.WriteString(m.renderFilterView())
-	case stateAdding:
+	case context.StateAdding:
 		content.WriteString(m.addTaskForm.View())
 		// case stateEditing:
 		// 	content.WriteString(m.renderEditView())
@@ -223,33 +208,7 @@ func Run() {
 	}
 	defer f.Close()
 
-	items := []Item{
-		{title: "Raspberry Pi’s", desc: "I have ’em all over my house"},
-		{title: "Nutella", desc: "It's good on toast"},
-		{title: "Bitter melon", desc: "It cools you down"},
-		{title: "Nice socks", desc: "And by that I mean socks without holes"},
-		{title: "Eight hours of sleep", desc: "I had this once"},
-		{title: "Cats", desc: "Usually"},
-		{title: "Plantasia, the album", desc: "My plants love it too"},
-		{title: "Pour over coffee", desc: "It takes forever to make though"},
-		{title: "VR", desc: "Virtual reality...what is there to say?"},
-		{title: "Noguchi Lamps", desc: "Such pleasing organic forms"},
-		{title: "Linux", desc: "Pretty much the best OS"},
-		{title: "Business school", desc: "Just kidding"},
-		{title: "Pottery", desc: "Wet clay is a great feeling Wet clay is a great feelingWet clay is a great feelingWet \nclay is a great feelingWet clay is a great feelingWet clay is a great feeling"},
-		{title: "Shampoo", desc: "Nothing like clean hair"},
-		{title: "Table tennis", desc: "It’s surprisingly exhausting"},
-		{title: "Milk crates", desc: "Great for packing in your extra stuff"},
-		{title: "Afternoon tea", desc: "Especially the tea sandwich part"},
-		{title: "Stickers", desc: "The thicker the vinyl the better"},
-		{title: "20° Weather", desc: "Celsius, not Fahrenheit"},
-		{title: "Warm light", desc: "Like around 2700 Kelvin"},
-		{title: "The vernal equinox", desc: "The autumnal equinox is pretty good too"},
-		{title: "Gaffer’s tape", desc: "Basically sticky fabric"},
-		{title: "Terrycloth", desc: "In other words, towel fabric"},
-	}
-
-	m := NewModel(items)
+	m := NewModel()
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
@@ -285,12 +244,11 @@ func (m Model) handleBrowsingKeys(
 		nextRow := currSection.NextRow()
 
 		if prevRow != nextRow && nextRow == currSection.NumRows()-1 {
-			cmds = append(cmds, currSection.FetchNextPageSectionRows()...)
+			cmds = append(cmds, currSection.FetchNextPageSectionRows("next")...)
 		}
 		// cmd = m.onViewedRowChanged()
 	case key.Matches(msg, m.keys.Up):
 		currSection.PrevRow()
-
 	case key.Matches(msg, m.keys.Search):
 		if currSection != nil {
 			cmd = currSection.SetIsSearching(true)
@@ -302,30 +260,39 @@ func (m Model) handleBrowsingKeys(
 		} else {
 			m.ctx.View = config.Status
 		}
-		newSections, fetchSectionsCmds := m.fetchAllViewSections()
+
+		newSections, cmd := m.fetchAllViewSections()
 		m.setCurrentViewSections(newSections)
 		m.setCurrSectionId(1)
+		return m, cmd
 
-		cmds = append(cmds, fetchSectionsCmds)
+	case key.Matches(msg, m.keys.NextPage):
+		section := m.GetCurrSection()
+		fetchCmd := section.FetchNextPage()
+		cmds = append(cmds, fetchCmd)
+
+	case key.Matches(msg, m.keys.PrevPage):
+		section := m.GetCurrSection()
+		fetchCmd := section.FetchPrevPage()
+		cmds = append(cmds, fetchCmd)
 
 	case key.Matches(msg, m.keys.AddTask):
-		if m.CurrentState == stateBrowsing {
-			m.CurrentState = stateAdding
+		if m.ctx.CurrentState == context.StateBrowsing {
+			m.ctx.CurrentState = context.StateAdding
 		}
-	// case key.Matches(msg, m.keys.Enter):
 
 	case key.Matches(msg, m.keys.TogglePreview):
 		m.sidebar.IsOpen = !m.sidebar.IsOpen
 		m.SyncMainContentWidth()
 	case key.Matches(msg, m.keys.Help):
 		_, v := docStyle.GetFrameSize()
-		if !m.footer.ShowAll {
+		m.footer.ShowAll = !m.footer.ShowAll
+		if m.footer.ShowAll {
 			m.ctx.MainContentHeight = m.ctx.ScreenHeight - v - context.ExpandedHelpHeight
 		} else {
 			m.ctx.MainContentHeight = m.ctx.ScreenHeight - v - context.FooterHeight
 		}
 
-		m.footer.ShowAll = !m.footer.ShowAll
 	}
 
 	return m, cmd
@@ -338,7 +305,7 @@ func (m Model) handleAddingTaskKeys(
 
 	switch msg.String() {
 	case "esc":
-		m.CurrentState = stateBrowsing
+		m.ctx.CurrentState = context.StateBrowsing
 		m.addTaskForm.ResetAddForm()
 		return m, nil
 
@@ -356,6 +323,7 @@ func (m *Model) SyncProgramContext(ctx *context.ProgramContext) {
 	m.sidebar.UpdateProgramContext(m.ctx)
 	m.tabs.UpdateProgramContext(m.ctx)
 	m.footer.UpdateProgramContext(m.ctx)
+	m.addTaskForm.UpdateProgramContext(m.ctx)
 }
 
 func (m *Model) onWindowSizeChanged(msg tea.WindowSizeMsg) {
@@ -396,21 +364,19 @@ func (m *Model) fetchAllViewSections() ([]section.Section, tea.Cmd) {
 	cmds := make([]tea.Cmd, 0)
 	cmds = append(cmds, m.tabs.SetAllLoading()...)
 
-	log.Print("CTX VIEW =", m.ctx.View)
-
 	switch m.ctx.View {
 	case config.Priority:
-		section, taskCmds1 := tasksection.FetchAllSections(m.ctx, m.priorityTasks, m.ctx.View)
+		sections, taskCmds1 := tasksection.FetchAllSections(m.ctx, m.priorityTasks, m.ctx.View)
 		cmds = append(cmds, taskCmds1)
-		return section, tea.Batch(cmds...)
+		return sections, tea.Batch(cmds...)
 	case config.Status:
-		section, taskCmds2 := tasksection.FetchAllSections(m.ctx, m.statusTasks, m.ctx.View)
+		sections, taskCmds2 := tasksection.FetchAllSections(m.ctx, m.statusTasks, m.ctx.View)
 		cmds = append(cmds, taskCmds2)
-		return section, tea.Batch(cmds...)
+		return sections, tea.Batch(cmds...)
 	default:
-		section, taskCmds2 := tasksection.FetchAllSections(m.ctx, m.statusTasks, m.ctx.View)
+		sections, taskCmds2 := tasksection.FetchAllSections(m.ctx, m.statusTasks, m.ctx.View)
 		cmds = append(cmds, taskCmds2)
-		return section, tea.Batch(cmds...)
+		return sections, tea.Batch(cmds...)
 	}
 }
 
@@ -471,7 +437,7 @@ func (m *Model) getCurrentViewSections() []section.Section {
 	}
 }
 
-func (m *Model) updateSection(id int, sType string, msg tea.Msg) (cmd tea.Cmd) {
+func (m *Model) updateSection(id int, msg tea.Msg) (cmd tea.Cmd) {
 	var updatedSection section.Section
 	switch m.ctx.View {
 	case config.Status:
@@ -502,7 +468,7 @@ func (m *Model) UpdateCurrentSection(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 
-	return m.updateSection(section.GetId(), section.GetType(), msg)
+	return m.updateSection(section.GetId(), msg)
 }
 
 func (m *Model) setCurrSectionId(newSectionId int) {
