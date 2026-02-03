@@ -63,7 +63,7 @@ func NewModel(
 		IsSearching: false,
 		TotalCount:  0,
 		CurrentPage: 0,
-		Pagination:  models.CursorPagination{Limit: 2, OrderBy: "created_at", OrderDir: "DESC"},
+		Pagination:  models.CursorPagination{Limit: 4, OrderBy: "created_at", OrderDir: "DESC"},
 	}
 
 	emptyMsg := m.Ctx.Styles.Section.EmptyStateStyle.Render(

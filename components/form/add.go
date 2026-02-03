@@ -105,7 +105,7 @@ func (m Model) Update(msg tea.KeyMsg, cmd tea.Cmd) (Model, tea.Cmd) {
 				Title:       m.TitleInput.Value(),
 				Description: m.DescInput.Value(),
 				Priority:    models.Priority(m.PriorityInput.Value()),
-				Status:      models.NotStarted,
+				Status:      models.Status(m.StatusInput.Value()),
 			}
 
 			err := m.Ctx.Repo.CreateTodo(context.TODO(), todo)
@@ -221,14 +221,14 @@ func (m *Model) ResetAddForm() {
 	m.successMsg = ""
 }
 
-func (m *Model) DeleteTask(taskId string) {
+func (m *Model) DeleteTask(taskId string) error {
 	err := m.Ctx.Repo.DeleteTodo(context.TODO(), taskId)
 	if err != nil {
 		m.errorMsg = "Failed to update task: " + err.Error()
 	} else {
 		m.successMsg = fmt.Sprintf("Task %s deleted successfully!", taskId)
 	}
-
+	return err
 }
 
 func (m *Model) UpdateProgramContext(ctx *ctx.ProgramContext) {

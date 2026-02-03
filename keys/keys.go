@@ -13,6 +13,7 @@ type KeyMap struct {
 	AddTask         key.Binding
 	EditTask        key.Binding
 	DeleteTask      key.Binding
+	SaveTask        key.Binding
 	Quit            key.Binding
 	Enter           key.Binding
 	PageUp          key.Binding
@@ -64,6 +65,10 @@ var Keys = &KeyMap{
 		key.WithKeys("f", "F"),
 		key.WithHelp("f/F", "Switch Filter"),
 	),
+	SaveTask: key.NewBinding(
+		key.WithKeys("ctrl+s"),
+		key.WithHelp("ctrl+s", "Save task"),
+	),
 	Quit: key.NewBinding(
 		key.WithKeys("ctrl+c", "esc", "q"),
 		key.WithHelp("q", "quit"),
@@ -99,5 +104,24 @@ func (k KeyMap) ShortHelp() []key.Binding {
 }
 
 func (k KeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.Up, k.Down, k.TogglePreview, k.PageUp, k.PageDown, k.Enter, k.Help}}
+	return [][]key.Binding{
+		{
+			k.Up,
+			k.Down,
+			k.PreviousSection,
+			k.NextSection,
+			k.AddTask,
+			k.EditTask,
+			k.DeleteTask,
+		}, {
+			k.TogglePreview,
+			k.Search,
+			k.Filter,
+			k.PageUp,
+			k.PageDown,
+			k.SaveTask,
+			k.Quit,
+			k.Help,
+		},
+	}
 }

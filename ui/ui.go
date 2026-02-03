@@ -294,7 +294,15 @@ func (m Model) handleBrowsingKeys(
 		m.addTaskForm.SetTaskValues(currRowData)
 	case key.Matches(msg, m.keys.DeleteTask):
 		currRowData := m.getCurrRowData()
-		m.addTaskForm.DeleteTask(currRowData.Id)
+		err := m.addTaskForm.DeleteTask(currRowData.Id)
+		if err != nil {
+			log.Fatal(err)
+		}
+		section := m.GetCurrSection()
+		if section.GetPaginatedTodos().HasNext {
+			fetchCmd := section.FetchNextPage()
+			return m, fetchCmd
+		}
 		m.ctx.CurrentState = context.StateBrowsing
 	case key.Matches(msg, m.keys.TogglePreview):
 		m.sidebar.IsOpen = !m.sidebar.IsOpen
@@ -317,15 +325,19 @@ func (m Model) handleAddingTaskKeys(
 	msg tea.KeyMsg,
 	cmd tea.Cmd,
 ) (Model, tea.Cmd) {
+	m.addTaskForm, _ = m.addTaskForm.Update(msg, cmd)
 
 	switch msg.String() {
 	case "esc":
 		m.ctx.CurrentState = context.StateBrowsing
 		m.addTaskForm.ResetAddForm()
 		return m, nil
-
+	case "ctrl+s":
+		newSections, fetchSectionsCmds := m.fetchAllViewSections()
+		m.setCurrentViewSections(newSections)
+		m.setCurrSectionId(1)
+		return m, tea.Batch(cmd, fetchSectionsCmds)
 	}
-	m.addTaskForm, _ = m.addTaskForm.Update(msg, cmd)
 
 	return m, cmd
 }

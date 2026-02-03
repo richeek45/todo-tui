@@ -70,6 +70,8 @@ func (m *Model) Update(msg tea.Msg) (section.Section, tea.Cmd) {
 				m.SearchValue = m.SearchBar.Value()
 				m.SetIsSearching(false)
 				m.ResetRows()
+				m.PaginatedTodos = nil
+				m.CurrentPage = 0
 				return m, tea.Batch(m.FetchNextPageSectionRows("next")...)
 			}
 		}
@@ -77,14 +79,13 @@ func (m *Model) Update(msg tea.Msg) (section.Section, tea.Cmd) {
 		m.PaginatedTodos = msg.PaginatedTodos
 		if msg.PaginatedTodos != nil {
 			m.Tasks = msg.PaginatedTodos.Todos
+			if msg.direction == "next" {
+				m.CurrentPage += 1
+			} else {
+				m.CurrentPage = max(m.CurrentPage-1, 0)
+			}
 		} else {
 			m.Tasks = []models.Task{}
-		}
-
-		if msg.direction == "next" {
-			m.CurrentPage += 1
-		} else {
-			m.CurrentPage = max(m.CurrentPage-1, 0)
 		}
 
 		m.TotalCount = msg.TotalCount
